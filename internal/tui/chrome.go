@@ -65,13 +65,21 @@ func (m Model) statusBar(cropped bool) string {
 	}
 	flags = append(flags, m.activePalette().Name)
 
-	right := fmt.Sprintf("%s  %02d/%02d  %s  %s  ",
+	core := fmt.Sprintf("%s  %02d/%02d  %s  %s  ",
 		strings.Join(flags, " "),
 		m.pos+1, len(m.order),
 		m.progress(8),
 		transport,
 	)
-	right = dim.Render(right)
+	// The bar is the only place the help key can announce itself, so it goes
+	// in whenever the bar is wide enough to spare the room.
+	hint := ""
+	if k := m.helpKey(); k != "" {
+		if lipgloss.Width(left)+len(k+" help  ")+lipgloss.Width(core) <= m.w-2 {
+			hint = bright.Render(k) + dim.Render(" help  ")
+		}
+	}
+	right := hint + dim.Render(core)
 
 	gap := m.w - lipgloss.Width(left) - lipgloss.Width(right)
 	if gap < 1 {
@@ -109,6 +117,25 @@ func (m Model) progress(width int) string {
 	return strings.Repeat("▮", filled) + strings.Repeat("▯", width-filled)
 }
 
+func effectList(names []string) string {
+	if len(names) == 0 {
+		return "none"
+	}
+	return strings.Join(names, " + ")
+}
+
+// helpKey is the first key bound to the help overlay, for the bar's hint.
+func (m Model) helpKey() string {
+	keys := m.keys.Help.Keys()
+	if len(keys) == 0 {
+		return ""
+	}
+	if keys[0] == " " {
+		return "space"
+	}
+	return keys[0]
+}
+
 func (m Model) helpView() string {
 	dim, bright := m.barStyles()
 	var b strings.Builder
@@ -138,10 +165,14 @@ func (m Model) helpView() string {
 		awakeState = "unavailable"
 	}
 	lines = append(lines, "",
-		dim.Render(fmt.Sprintf("scenes %s  palette %s  effects %s",
-			fmt.Sprint(len(m.order)), m.activePalette().Name, m.effects.Intensity)),
+		dim.Render(fmt.Sprintf("scenes %s  palette %s  effects %s (%s)",
+			fmt.Sprint(len(m.order)), m.activePalette().Name, m.effects.Intensity,
+			effectList(m.activeEffects().Names))),
 		dim.Render(fmt.Sprintf("carousel %s  awake %s (%s)",
 			carousel, awakeState, awake.Name())))
+	if k := m.helpKey(); k != "" {
+		lines = append(lines, "", dim.Render(fmt.Sprintf("press %s to close", k)))
+	}
 
 	top := (m.h - len(lines)) / 2
 	if top < 0 {
@@ -157,12 +188,16 @@ func (m Model) helpView() string {
 	if pad < 0 {
 		pad = 0
 	}
+	// Plain newlines only: a trailing carriage return would put the cursor
+	// back at column 0 before Bubble Tea's erase-to-end-of-line, which wipes
+	// the line just written. Full-width scene rows never hit that, but every
+	// line here is short.
 	for i := 0; i < top; i++ {
-		b.WriteString("\r\n")
+		b.WriteString("\n")
 	}
 	for i, l := range lines {
 		if i > 0 {
-			b.WriteString("\r\n")
+			b.WriteString("\n")
 		}
 		b.WriteString(strings.Repeat(" ", pad) + l)
 	}

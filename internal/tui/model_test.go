@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -376,6 +377,104 @@ func TestHelpOverlay(t *testing.T) {
 	}
 }
 
+func TestHelpTogglesOnH(t *testing.T) {
+	m := newModel(t, deck(t), 80, 24, nil)
+	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'h'}})
+	if !m.(Model).showHelp {
+		t.Fatal("'h' should open the help overlay")
+	}
+	if out := stripSGR(m.View()); !strings.Contains(out, "next scene") {
+		t.Errorf("help overlay missing bindings:\n%s", out)
+	}
+	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'h'}})
+	if m.(Model).showHelp {
+		t.Error("'h' should close the help overlay again")
+	}
+}
+
+func TestStatusBarAdvertisesTheHelpKey(t *testing.T) {
+	m := newModel(t, deck(t), 80, 24, nil).(Model)
+	if bar := stripSGR(m.statusBar(false)); !strings.Contains(bar, "h help") {
+		t.Errorf("the bar should say which key opens help: %q", bar)
+	}
+	// A narrow bar drops the hint rather than wrapping.
+	m.w = 30
+	if bar := stripSGR(m.statusBar(false)); strings.Contains(bar, "help") {
+		t.Errorf("a narrow bar should drop the hint: %q", bar)
+	}
+}
+
+// Full-width scene rows can carry a trailing CR harmlessly, but a short line
+// followed by one is erased by Bubble Tea's erase-to-end-of-line, which used to
+// leave the overlay blank on screen.
+func TestCentredScreensUseBareNewlines(t *testing.T) {
+	m := newModel(t, deck(t), 80, 24, nil).(Model)
+	m.showHelp = true
+	if strings.Contains(m.View(), "\r") {
+		t.Error("the help overlay must not end its lines with a carriage return")
+	}
+	if strings.Contains(centreText(40, 12, "[ too small ]"), "\r") {
+		t.Error("centreText must not end its lines with a carriage return")
+	}
+}
+
+func TestEffectCycleKey(t *testing.T) {
+	m := newModel(t, deck(t), 80, 24, func(c *config.Config) {
+		c.Effects = []string{"scanlines", "glitch"}
+	}).(Model)
+	start := m.activeEffects().Names
+
+	var seen []string
+	for range effect.Names {
+		m = press(m, 'E').(Model)
+		got := m.activeEffects().Names
+		if len(got) != 1 {
+			t.Fatalf("the cycle should select one effect at a time, got %v", got)
+		}
+		seen = append(seen, got[0])
+		if !effect.Valid(got[0]) {
+			t.Errorf("%q is not an effect", got[0])
+		}
+		if !strings.Contains(stripSGR(m.statusBar(false)), strings.ToUpper(got[0])) {
+			t.Errorf("the bar should name the selected effect %q", got[0])
+		}
+	}
+	if !reflect.DeepEqual(seen, effect.Names) {
+		t.Errorf("the cycle should walk every effect in order: got %v, want %v", seen, effect.Names)
+	}
+
+	// One more press returns to the configured set rather than a fifth effect.
+	m = press(m, 'E').(Model)
+	if !reflect.DeepEqual(m.activeEffects().Names, start) {
+		t.Errorf("the cycle should wrap back to the configured set: got %v, want %v",
+			m.activeEffects().Names, start)
+	}
+}
+
+func TestEffectCycleBeatsTheScenesOwnEffects(t *testing.T) {
+	m := newModel(t, deck(t), 80, 24, nil).(Model)
+	// Some scenes (storm, scope, donut) carry their own effect list, which
+	// the cycle has to override.
+	found := false
+	for i, idx := range m.order {
+		if len(m.reg.Scenes[idx].Meta.Effects) > 0 {
+			m.pos, found = i, true
+			break
+		}
+	}
+	if !found {
+		t.Fatal("no scene in the deck sets its own effects")
+	}
+	s := m.current()
+	if got := m.activeEffects().Names; !reflect.DeepEqual(got, s.Meta.Effects) {
+		t.Fatalf("the scene's own effects should apply before any cycling: %v", got)
+	}
+	m = press(m, 'E').(Model)
+	if got := m.activeEffects().Names; len(got) != 1 || got[0] != effect.Names[0] {
+		t.Errorf("a cycled effect should override the scene's, got %v", got)
+	}
+}
+
 func TestQuitKeys(t *testing.T) {
 	for _, k := range []tea.KeyMsg{
 		{Type: tea.KeyRunes, Runes: []rune{'q'}},
@@ -598,6 +697,7 @@ func TestKeyMapCoversEveryBinding(t *testing.T) {
 	for _, b := range []key.Binding{
 		DefaultKeyMap().Next, DefaultKeyMap().Prev, DefaultKeyMap().Pause,
 		DefaultKeyMap().Shuffle, DefaultKeyMap().Palette, DefaultKeyMap().Effects,
+		DefaultKeyMap().EffectSet,
 		DefaultKeyMap().Faster, DefaultKeyMap().Slower, DefaultKeyMap().Fit,
 		DefaultKeyMap().StatusBar, DefaultKeyMap().Carousel, DefaultKeyMap().Awake,
 		DefaultKeyMap().Help, DefaultKeyMap().Quit,

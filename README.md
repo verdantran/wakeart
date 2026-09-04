@@ -31,20 +31,22 @@ make build && ./wakeart
 |---|---|
 | `space` | Pause / resume |
 | `n`, `→`, `l` | Next scene |
-| `p`, `←`, `h` | Previous scene |
+| `p`, `←` | Previous scene |
 | `a` | Toggle the carousel — hold on one scene, or auto-advance |
 | `k` | Toggle keep-awake — stop the machine sleeping |
 | `s` | Toggle shuffle |
 | `c` | Cycle palette |
 | `e` | Cycle effect intensity — off / subtle / heavy |
+| `E`, `x` | Cycle which effect runs — the configured set, then each of `scanlines`, `flicker`, `glitch`, `chroma` |
 | `+` / `-` | Speed up / slow down |
 | `f` | Toggle fit-to-viewport scaling |
 | `i` | Toggle status bar |
-| `?` | Help |
+| `h`, `?` | Toggle the help overlay |
 | `q`, `esc`, `ctrl+c` | Quit |
 
-Every binding is remappable. The help overlay is generated from the keymap, so
-it cannot drift from what the keys actually do.
+Every binding is remappable. The status bar advertises the help key, and the
+overlay itself is generated from the keymap, so neither can drift from what the
+keys actually do.
 
 ## What ships
 
@@ -192,6 +194,10 @@ Palettes: `neon`, `synthwave`, `acid`, `bladerunner`, `ice`, `bloodmoon`, `mono`
 Effects: `scanlines`, `flicker`, `glitch`, `chroma` — each at `off`, `subtle`
 or `heavy`. They are post-processing over the composed frame, so scene authors
 write art, not aesthetics, and the whole look is one keypress from off.
+
+`e` cycles the intensity, `E` (or `x`) cycles which effect runs: the configured
+set first, then each effect on its own, then back. A cycled effect beats the
+scene's own list, and the status bar names each one as you land on it.
 
 Truecolor is the good path. 256-colour and 16-colour terminals get hand-picked
 approximations rather than automatic quantisation, which turns neon gradients
