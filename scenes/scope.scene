@@ -1,0 +1,11 @@
+---
+name    = "Scope"
+kind    = "scope"
+spin    = [3.0, 2.0, 10.0]
+scale   = 0.88
+palette = "acid"
+fps     = 24
+hold    = "20s"
+effects = ["scanlines", "flicker"]
+tags    = ["procedural", "instrument"]
+---

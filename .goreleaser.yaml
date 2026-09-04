@@ -1,0 +1,37 @@
+version: 2
+project_name: wakeart
+
+before:
+  hooks:
+    - go mod tidy
+    - go test ./...
+
+builds:
+  - id: wakeart
+    main: ./cmd/wakeart
+    binary: wakeart
+    env: [CGO_ENABLED=0]
+    ldflags:
+      - -s -w -X main.version={{.Version}}
+    goos: [darwin, linux]
+    goarch: [amd64, arm64]
+
+archives:
+  - formats: [tar.gz]
+    files: [README.md, LICENSE, SPEC.md]
+
+checksum:
+  name_template: checksums.txt
+
+brews:
+  - name: wakeart
+    repository:
+      owner: verdantran
+      name: homebrew-tap
+    description: ASCII art on a loop, for a spare terminal pane
+    homepage: https://github.com/verdantran/wakeart
+
+changelog:
+  sort: asc
+  filters:
+    exclude: ['^docs:', '^test:']

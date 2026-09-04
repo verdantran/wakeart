@@ -1,0 +1,18 @@
+---
+name    = "Flipbook Fixture"
+palette = "acid"
+fps     = 4
+loop    = "pingpong"
+tags    = ["fixture"]
+---
+  ░░░░
+  ░██░
+  ░░░░
+===
+  ▒▒▒▒
+  ▒██▒
+  ▒▒▒▒
+===
+  ▓▓▓▓
+  ▓██▓
+  ▓▓▓▓

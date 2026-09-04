@@ -1,0 +1,10 @@
+---
+name    = "Gearworks"
+kind    = "gears"
+spin    = [0.0000000, 0.7853982, 0.0000000]
+scale   = 0.92
+palette = "bladerunner"
+fps     = 20
+hold    = "20s"
+tags    = ["procedural", "machine"]
+---

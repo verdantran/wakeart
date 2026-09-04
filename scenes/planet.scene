@@ -1,0 +1,11 @@
+---
+name    = "Planet"
+kind    = "shaded"
+shape   = "sphere"
+spin    = [0.0, 0.6283185, 0.0]
+scale   = 0.92
+palette = "bladerunner"
+fps     = 22
+hold    = "18s"
+tags    = ["procedural", "shape"]
+---

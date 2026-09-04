@@ -1,0 +1,26 @@
+goos: darwin
+goarch: arm64
+pkg: github.com/jburnham/wakeart/internal/tui
+cpu: Apple M3
+BenchmarkStartup-8          	    6277	    192615 ns/op
+BenchmarkStartup-8          	    6266	    194206 ns/op
+BenchmarkStartup-8          	    6085	    195860 ns/op
+BenchmarkStartup-8          	    6050	    203466 ns/op
+BenchmarkStartup-8          	    6151	    197430 ns/op
+BenchmarkFrame-8            	   10000	    150343 ns/op
+BenchmarkFrame-8            	   10000	    152116 ns/op
+BenchmarkFrame-8            	   10000	    151981 ns/op
+BenchmarkFrame-8            	   10000	    152596 ns/op
+BenchmarkFrame-8            	   10000	    152838 ns/op
+BenchmarkFrameNoEffects-8   	   18254	     65536 ns/op
+BenchmarkFrameNoEffects-8   	   18327	     65946 ns/op
+BenchmarkFrameNoEffects-8   	   18322	     66031 ns/op
+BenchmarkFrameNoEffects-8   	   18253	     66162 ns/op
+BenchmarkFrameNoEffects-8   	   18080	     65537 ns/op
+BenchmarkPaintOnly-8        	   39944	     29993 ns/op
+BenchmarkPaintOnly-8        	   39864	     30036 ns/op
+BenchmarkPaintOnly-8        	   40033	     30011 ns/op
+BenchmarkPaintOnly-8        	   40003	     30011 ns/op
+BenchmarkPaintOnly-8        	   39988	     30009 ns/op
+PASS
+ok  	github.com/jburnham/wakeart/internal/tui	31.563s

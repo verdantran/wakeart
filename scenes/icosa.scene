@@ -1,0 +1,11 @@
+---
+name    = "Icosahedron"
+kind    = "wireframe"
+shape   = "icosahedron"
+spin    = [1.2566371, 0.6283185, 0.6283185]
+scale   = 0.85
+palette = "acid"
+fps     = 24
+hold    = "18s"
+tags    = ["procedural", "shape"]
+---

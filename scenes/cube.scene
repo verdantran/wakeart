@@ -1,0 +1,11 @@
+---
+name    = "Wireframe"
+kind    = "wireframe"
+shape   = "cube"
+spin    = [0.6283185, 1.2566371, 0.6283185]
+scale   = 0.8
+palette = "ice"
+fps     = 24
+hold    = "18s"
+tags    = ["procedural", "shape"]
+---

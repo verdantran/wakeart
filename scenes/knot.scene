@@ -1,0 +1,11 @@
+---
+name    = "Torus Knot"
+kind    = "wireframe"
+shape   = "knot"
+spin    = [0.6283185, 1.2566371, 0.0]
+scale   = 0.82
+palette = "bloodmoon"
+fps     = 24
+hold    = "18s"
+tags    = ["procedural", "shape"]
+---

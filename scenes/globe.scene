@@ -1,0 +1,12 @@
+---
+name    = "Globe"
+kind    = "wireframe"
+shape   = "sphere"
+spin    = [0.0000000, 0.6283185, 0.0000000]
+scale   = 0.9
+cull    = true
+palette = "bladerunner"
+fps     = 24
+hold    = "18s"
+tags    = ["procedural", "shape"]
+---

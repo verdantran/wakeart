@@ -1,0 +1,12 @@
+---
+name    = "Donut"
+kind    = "shaded"
+shape   = "torus"
+spin    = [1.2566371, 0.0000000, 0.6283185]
+scale   = 0.95
+palette = "synthwave"
+fps     = 24
+hold    = "20s"
+effects = ["scanlines", "flicker"]
+tags    = ["procedural", "shape"]
+---

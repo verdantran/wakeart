@@ -1,0 +1,9 @@
+---
+name    = "Cascade"
+kind    = "rain"
+spin    = [0.0, 8.0, 0.0]
+palette = "acid"
+fps     = 20
+hold    = "18s"
+tags    = ["procedural", "text"]
+---

@@ -1,0 +1,170 @@
+package tui
+
+import (
+	"fmt"
+	"strings"
+
+	"github.com/charmbracelet/lipgloss"
+
+	"github.com/verdantran/wakeart/internal/awake"
+	"github.com/verdantran/wakeart/internal/palette"
+)
+
+const (
+	glyphPlay    = "⏵"
+	glyphPause   = "⏸"
+	glyphShuffle = "⤨"
+	glyphCrop    = "⊕"
+	glyphHold    = "⊘"
+	glyphAwake   = "☼"
+)
+
+func (m Model) barStyles() (dim, bright lipgloss.Style) {
+	p := m.activePalette()
+	if m.mode == palette.Mono {
+		return lipgloss.NewStyle().Faint(true), lipgloss.NewStyle().Bold(true)
+	}
+	toHex := func(c palette.RGB) string { return fmt.Sprintf("#%02x%02x%02x", c.R, c.G, c.B) }
+	return lipgloss.NewStyle().Foreground(lipgloss.Color(toHex(p.At(0.35)))),
+		lipgloss.NewStyle().Foreground(lipgloss.Color(toHex(p.At(0.95))))
+}
+
+func (m Model) statusBar(cropped bool) string {
+	s := m.current()
+	if s == nil || m.w <= 0 {
+		return ""
+	}
+	dim, bright := m.barStyles()
+
+	transport := glyphPlay
+	if m.paused {
+		transport = glyphPause
+	}
+
+	label := "▸ " + strings.ToUpper(s.Meta.Name)
+	if n := m.noticeText(); n != "" {
+		label = "● " + strings.ToUpper(n)
+	}
+	left := "  " + bright.Render(label)
+
+	var flags []string
+	if !m.carousel {
+		flags = append(flags, glyphHold)
+	}
+	if m.awake.On() {
+		flags = append(flags, glyphAwake)
+	}
+	if m.shuffle {
+		flags = append(flags, glyphShuffle)
+	}
+	if cropped {
+		flags = append(flags, glyphCrop)
+	}
+	if m.speed != 1 {
+		flags = append(flags, fmt.Sprintf("%gx", m.speed))
+	}
+	flags = append(flags, m.activePalette().Name)
+
+	right := fmt.Sprintf("%s  %02d/%02d  %s  %s  ",
+		strings.Join(flags, " "),
+		m.pos+1, len(m.order),
+		m.progress(8),
+		transport,
+	)
+	right = dim.Render(right)
+
+	gap := m.w - lipgloss.Width(left) - lipgloss.Width(right)
+	if gap < 1 {
+		// Drop the name to whatever room is left rather than wrapping the bar.
+		avail := m.w - lipgloss.Width(right) - 4
+		if avail < 1 {
+			return dim.Render(strings.Repeat(" ", m.w))
+		}
+		r := []rune(label)
+		if len(r) > avail {
+			r = r[:avail]
+		}
+		left = "  " + bright.Render(string(r))
+		gap = m.w - lipgloss.Width(left) - lipgloss.Width(right)
+		if gap < 0 {
+			gap = 0
+		}
+	}
+	return left + strings.Repeat(" ", gap) + right
+}
+
+func (m Model) progress(width int) string {
+	if !m.carousel {
+		return strings.Repeat("▯", width)
+	}
+	hold := m.hold()
+	p := 0.0
+	if hold > 0 {
+		p = float64(m.holdElapsed) / float64(hold)
+	}
+	if p > 1 {
+		p = 1
+	}
+	filled := int(p*float64(width) + 0.5)
+	return strings.Repeat("▮", filled) + strings.Repeat("▯", width-filled)
+}
+
+func (m Model) helpView() string {
+	dim, bright := m.barStyles()
+	var b strings.Builder
+
+	rows := m.keys.Rows()
+	keyw := 0
+	for _, r := range rows {
+		if len(r[0]) > keyw {
+			keyw = len(r[0])
+		}
+	}
+
+	var lines []string
+	lines = append(lines, bright.Render("wakeart"), "")
+	for _, r := range rows {
+		lines = append(lines, fmt.Sprintf("%s  %s",
+			bright.Render(fmt.Sprintf("%*s", keyw, r[0])), dim.Render(r[1])))
+	}
+	carousel := "on"
+	if !m.carousel {
+		carousel = "off"
+	}
+	awakeState := "off"
+	if m.awake.On() {
+		awakeState = "on"
+	} else if !awake.Supported() {
+		awakeState = "unavailable"
+	}
+	lines = append(lines, "",
+		dim.Render(fmt.Sprintf("scenes %s  palette %s  effects %s",
+			fmt.Sprint(len(m.order)), m.activePalette().Name, m.effects.Intensity)),
+		dim.Render(fmt.Sprintf("carousel %s  awake %s (%s)",
+			carousel, awakeState, awake.Name())))
+
+	top := (m.h - len(lines)) / 2
+	if top < 0 {
+		top = 0
+	}
+	inner := 0
+	for _, l := range lines {
+		if w := lipgloss.Width(l); w > inner {
+			inner = w
+		}
+	}
+	pad := (m.w - inner) / 2
+	if pad < 0 {
+		pad = 0
+	}
+	for i := 0; i < top; i++ {
+		b.WriteString("\r\n")
+	}
+	for i, l := range lines {
+		if i > 0 {
+			b.WriteString("\r\n")
+		}
+		b.WriteString(strings.Repeat(" ", pad) + l)
+	}
+	return b.String()
+}

@@ -1,0 +1,9 @@
+---
+name    = "Storm"
+kind    = "storm"
+palette = "ice"
+fps     = 24
+hold    = "22s"
+effects = ["scanlines", "flicker"]
+tags    = ["procedural", "weather"]
+---

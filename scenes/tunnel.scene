@@ -1,0 +1,10 @@
+---
+name    = "Tunnel"
+kind    = "tunnel"
+spin    = [0.0, 0.0, 0.25]
+scale   = 0.98
+palette = "neon"
+fps     = 24
+hold    = "18s"
+tags    = ["procedural", "space"]
+---

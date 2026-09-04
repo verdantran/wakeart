@@ -1,0 +1,10 @@
+---
+name    = "Ridge"
+kind    = "terrain"
+spin    = [0.0, 0.0, 0.125]
+scale   = 0.95
+palette = "synthwave"
+fps     = 22
+hold    = "20s"
+tags    = ["procedural", "landscape"]
+---

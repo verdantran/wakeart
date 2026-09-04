@@ -1,0 +1,12 @@
+---
+name    = "Arc Net"
+kind    = "wireframe"
+shape   = "icosahedron"
+glyphs  = "·⌁↯ϟ⚡"
+spin    = [0.6283185, 1.2566371, 0.0000000]
+scale   = 0.8
+palette = "synthwave"
+fps     = 22
+hold    = "18s"
+tags    = ["procedural", "shape"]
+---

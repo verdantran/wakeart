@@ -1,0 +1,12 @@
+---
+name    = "Prism"
+kind    = "wireframe"
+shape   = "diamond"
+spin    = [0.6283185, 1.2566371, 0.6283185]
+scale   = 0.8
+palette = "ice"
+glyphs  = "·⌁↯ϟ⚡"
+fps     = 24
+hold    = "16s"
+tags    = ["procedural", "shape"]
+---
