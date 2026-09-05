@@ -3,6 +3,7 @@ package config
 import (
 	"os"
 	"path/filepath"
+	"reflect"
 	"testing"
 	"time"
 )
@@ -167,5 +168,43 @@ func TestAcceptsDistinctKeyBindings(t *testing.T) {
 	}
 	if _, err := Load(path); err != nil {
 		t.Errorf("distinct bindings rejected: %v", err)
+	}
+}
+
+// The check walks Keys by reflection so a newly added binding is covered
+// without anyone remembering to list it. This asserts that coverage directly:
+// every field gets a distinct key, and every pair must then collide.
+func TestKeyCheckCoversEveryBinding(t *testing.T) {
+	v := reflect.ValueOf(&Keys{}).Elem()
+	n := v.Type().NumField()
+	if n == 0 {
+		t.Fatal("Keys has no fields")
+	}
+	for i := 0; i < n; i++ {
+		name := v.Type().Field(i).Name
+		for j := 0; j < n; j++ {
+			if i == j {
+				continue
+			}
+			k := Keys{}
+			kv := reflect.ValueOf(&k).Elem()
+			kv.Field(i).Set(reflect.ValueOf([]string{"z"}))
+			kv.Field(j).Set(reflect.ValueOf([]string{"z"}))
+			if err := k.check(); err == nil {
+				t.Errorf("a key shared by %s and %s was not reported",
+					name, v.Type().Field(j).Name)
+			}
+		}
+	}
+}
+
+// Every field needs a toml tag, or reflection skips it and the binding silently
+// falls out of both the config file and the collision check.
+func TestEveryKeyFieldIsTagged(t *testing.T) {
+	t3 := reflect.TypeOf(Keys{})
+	for i := 0; i < t3.NumField(); i++ {
+		if t3.Field(i).Tag.Get("toml") == "" {
+			t.Errorf("Keys.%s has no toml tag", t3.Field(i).Name)
+		}
 	}
 }

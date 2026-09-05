@@ -7,6 +7,7 @@ import (
 	"math"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"time"
 
@@ -163,24 +164,29 @@ func (c *Config) validate() error {
 // check catches a key bound to two actions. Nothing downstream would report
 // it: the key handler is a switch, so the first arm silently wins and one of
 // the two rebindings just does nothing.
+//
+// The fields are walked by reflection rather than listed, because a
+// hand-written list is exactly the kind that falls a binding behind: it stays
+// compiling and stays quiet, so nothing tells you the newest action is
+// unchecked.
 func (k Keys) check() error {
 	owner := map[string]string{}
-	for _, b := range []struct {
-		action string
-		keys   []string
-	}{
-		{"next", k.Next}, {"prev", k.Prev}, {"pause", k.Pause},
-		{"shuffle", k.Shuffle}, {"palette", k.Palette}, {"effects", k.Effects},
-		{"effect_set", k.EffectSet},
-		{"faster", k.Faster}, {"slower", k.Slower}, {"fit", k.Fit},
-		{"status_bar", k.StatusBar}, {"carousel", k.Carousel}, {"awake", k.Awake},
-		{"help", k.Help}, {"quit", k.Quit},
-	} {
-		for _, key := range b.keys {
-			if prev, ok := owner[key]; ok {
-				return fmt.Errorf("keys: %q is bound to both %s and %s", key, prev, b.action)
+	v := reflect.ValueOf(k)
+	t := v.Type()
+	for i := 0; i < t.NumField(); i++ {
+		action := t.Field(i).Tag.Get("toml")
+		if action == "" {
+			continue
+		}
+		keys, ok := v.Field(i).Interface().([]string)
+		if !ok {
+			continue
+		}
+		for _, key := range keys {
+			if prev, exists := owner[key]; exists {
+				return fmt.Errorf("keys: %q is bound to both %s and %s", key, prev, action)
 			}
-			owner[key] = b.action
+			owner[key] = action
 		}
 	}
 	return nil
