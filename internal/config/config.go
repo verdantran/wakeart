@@ -171,6 +171,7 @@ func (k Keys) check() error {
 	}{
 		{"next", k.Next}, {"prev", k.Prev}, {"pause", k.Pause},
 		{"shuffle", k.Shuffle}, {"palette", k.Palette}, {"effects", k.Effects},
+		{"effect_set", k.EffectSet},
 		{"faster", k.Faster}, {"slower", k.Slower}, {"fit", k.Fit},
 		{"status_bar", k.StatusBar}, {"carousel", k.Carousel}, {"awake", k.Awake},
 		{"help", k.Help}, {"quit", k.Quit},
