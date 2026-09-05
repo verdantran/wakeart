@@ -16,6 +16,7 @@ import (
 	"github.com/charmbracelet/x/term"
 
 	"github.com/verdantran/wakeart"
+	"github.com/verdantran/wakeart/internal/audio"
 	"github.com/verdantran/wakeart/internal/awake"
 	"github.com/verdantran/wakeart/internal/config"
 	"github.com/verdantran/wakeart/internal/effect"
@@ -288,6 +289,7 @@ func printOnce(reg *scene.Registry, start int, cfg config.Config, mode palette.M
 	if s.Procedural() {
 		w, h := viewport()
 		f = s.Render(1700*time.Millisecond, 1, w, h)
+		defer s.Stop() // a live scene holds a capture open until told otherwise
 	} else {
 		frames, err := s.Frames()
 		if err != nil {
@@ -492,6 +494,7 @@ func cmdShow(args []string) error {
 	if s.Procedural() {
 		w, h := viewport()
 		f = s.Render(1700*time.Millisecond, 1, w, h)
+		defer s.Stop() // a live scene holds a capture open until told otherwise
 	} else {
 		frames, err := s.Frames()
 		if err != nil {
@@ -528,6 +531,10 @@ func cmdDoctor(args []string) error {
 	fmt.Printf("  COLORTERM     %s\n", os.Getenv("COLORTERM"))
 	fmt.Printf("  stdout is tty %v\n", isTTY(os.Stdout))
 	fmt.Printf("  sleep inhibit %s\n", awake.Name())
+	fmt.Printf("  audio capture %s\n", audio.Backend())
+	if !audio.Supported() {
+		fmt.Println("                the spectrum scene is not offered without one")
+	}
 	fmt.Println()
 	fmt.Println("paths")
 	fmt.Printf("  config        %s\n", config.Path())

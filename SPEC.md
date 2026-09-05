@@ -416,6 +416,12 @@ Fifteen scenes ship embedded, all generated per frame. They set the taste, so th
 
 Every one declares an exact loop period, which is what lets a capture cut without a seam.
 
+**Live** — Spectrum (bars of the machine's own output, acid). It is the one scene that is not a function of time, so it declares no loop period and the golden tests skip it.
+
+`spectrum` captures what the machine is *playing*, never a microphone: the recorder is pointed at a sink monitor, and a backend that could resolve to a capture device does not belong in that file. It reads 22.05 kHz mono float32 from `parec`, folds a 1024-sample window through a Hann window and a radix-2 FFT, and maps the bins onto 24 logarithmically spaced bands between 40 Hz and 16 kHz — linear spacing would put almost every bar above 5 kHz and squeeze the bass, the part you actually see moving, into one bar. Each band takes its strongest bin rather than the mean, since averaging a wide high band buries a tone among quiet neighbours, and the result is read in dB across a 60 dB floor because ears are logarithmic and the bars should be too. Bars rise instantly and fall gradually, with a peak cap that decays on elapsed time rather than frame count.
+
+The scene is offered only where the capture works. Elsewhere `proc.Build` returns `ErrKindUnavailable` and the registry drops the scene without an error: the user has nothing to fix, and a pane that could never show anything is worse than no pane. `device` names a sink monitor and is validated before it reaches argv — it cannot become a command, since no shell is involved, but a leading dash would still become a flag.
+
 No art files ship. The `.scene` format, colour masks and ANSI passthrough remain fully supported for scenes a user adds, and two fixture files under `internal/tui/testdata/scenes` keep that path covered by the golden tests.
 
 ## 8. Milestones

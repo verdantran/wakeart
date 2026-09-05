@@ -1,13 +1,16 @@
 package proc
 
 import (
+	"errors"
 	"fmt"
 	"math"
 	"strings"
+
+	"github.com/verdantran/wakeart/internal/audio"
 )
 
 // Kinds are the procedural renderers a scene file may ask for.
-var Kinds = []string{"wireframe", "shaded", "gears", "storm", "tunnel", "scope", "rain", "terrain"}
+var Kinds = []string{"wireframe", "shaded", "gears", "storm", "tunnel", "scope", "rain", "terrain", "spectrum"}
 
 // Params is a scene's procedural frontmatter, already typed.
 type Params struct {
@@ -17,7 +20,13 @@ type Params struct {
 	Scale  float64
 	Cull   bool
 	Glyphs []rune // ramp from dim to bright; nil keeps the renderer's own
+	Device string // capture device for the spectrum kind; empty means the default
 }
+
+// ErrKindUnavailable marks a kind this build understands but this machine
+// cannot run. The registry drops such a scene quietly: it is not a malformed
+// file and the user has nothing to fix.
+var ErrKindUnavailable = errors.New("kind unavailable on this machine")
 
 // maxScale bounds the frontmatter's scale. It is documented as a fraction of
 // the viewport, so anything past a few multiples of it is a typo — and the
@@ -69,6 +78,15 @@ func Build(p Params) (Renderer, error) {
 
 	case "terrain", "ridge":
 		return NewTerrain(p), nil
+
+	case "spectrum", "audio":
+		// Offered only where the machine's own output can actually be
+		// captured. Elsewhere the deck drops the scene rather than carrying a
+		// pane that could never show anything.
+		if !audio.Supported() {
+			return nil, fmt.Errorf("%w: %s", ErrKindUnavailable, audio.Backend())
+		}
+		return NewSpectrum(p), nil
 	}
 	return nil, fmt.Errorf("unknown kind %q (have: %s)", p.Kind, strings.Join(Kinds, ", "))
 }
@@ -93,6 +111,11 @@ func (p *Params) check() error {
 		}
 		if math.Abs(v) > maxSpin {
 			return fmt.Errorf("spin[%d] %v is out of range (magnitude at most %d)", i, v, maxSpin)
+		}
+	}
+	if p.Device != "" {
+		if err := audio.ValidDevice(p.Device); err != nil {
+			return err
 		}
 	}
 	// A ramp is interpolated across len-1 steps, so one glyph divides by zero.

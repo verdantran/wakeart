@@ -89,6 +89,9 @@ func TestGoldenScenes(t *testing.T) {
 		for _, s := range all {
 			name := fmt.Sprintf("%s_%dx%d", scene.SlugOf(s), sz.w, sz.h)
 			t.Run(name, func(t *testing.T) {
+				if s.Live() {
+					t.Skip("live scene: its output depends on the machine, not on time")
+				}
 				var b strings.Builder
 				if s.Procedural() {
 					// Sampled at fixed moments: the geometry is a pure

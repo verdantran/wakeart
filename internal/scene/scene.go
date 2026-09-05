@@ -62,6 +62,22 @@ func (s *Scene) Render(elapsed time.Duration, speed float64, w, h int) *render.F
 	return s.proc.Frame(time.Duration(float64(elapsed)*speed), w, h)
 }
 
+// Live reports whether the scene's output depends on something outside the
+// program — the spectrum scene reads the machine's audio — so it cannot be
+// compared against a golden file.
+func (s *Scene) Live() bool {
+	l, ok := s.proc.(interface{ Live() bool })
+	return ok && l.Live()
+}
+
+// Stop releases whatever the scene holds open. Only a live scene has anything
+// to release.
+func (s *Scene) Stop() {
+	if st, ok := s.proc.(interface{ Stop() }); ok {
+		st.Stop()
+	}
+}
+
 // Loop is the period after which a procedural scene exactly repeats, or 0.
 func (s *Scene) Loop() time.Duration {
 	if s.proc == nil {

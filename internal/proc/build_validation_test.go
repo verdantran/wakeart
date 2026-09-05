@@ -1,6 +1,7 @@
 package proc
 
 import (
+	"errors"
 	"math"
 	"strings"
 	"testing"
@@ -32,6 +33,9 @@ func TestBuildAcceptsOrdinaryParams(t *testing.T) {
 	for _, kind := range Kinds {
 		p := Params{Kind: kind, Scale: 0.9, Spin: SpinFrom([]float64{0.6, 1.2, 0.3})}
 		r, err := Build(p)
+		if errors.Is(err, ErrKindUnavailable) {
+			continue // a kind this machine cannot run is not a failure
+		}
 		if err != nil {
 			t.Errorf("%s: %v", kind, err)
 			continue
@@ -59,6 +63,9 @@ func TestDerivedPeriodsAreNeverZero(t *testing.T) {
 func TestFrameSurvivesOddViewports(t *testing.T) {
 	for _, kind := range Kinds {
 		r, err := Build(Params{Kind: kind, Scale: 0.9})
+		if errors.Is(err, ErrKindUnavailable) {
+			continue
+		}
 		if err != nil {
 			t.Fatal(err)
 		}

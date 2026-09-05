@@ -1,12 +1,15 @@
 package scene
 
 import (
+	"errors"
 	"fmt"
 	"io/fs"
 	"os"
 	"path/filepath"
 	"sort"
 	"strings"
+
+	"github.com/verdantran/wakeart/internal/proc"
 )
 
 const Ext = ".scene"
@@ -99,7 +102,11 @@ func Load(embedded fs.FS, dirs []string) *Registry {
 			}
 			s, err := Parse("embedded:"+strings.TrimSuffix(n, Ext), data)
 			if err != nil {
-				r.Errs = append(r.Errs, fmt.Errorf("embedded %s: %w", n, err))
+				// A kind this machine cannot run is not a broken scene; the
+				// deck simply does not offer it here.
+				if !errors.Is(err, proc.ErrKindUnavailable) {
+					r.Errs = append(r.Errs, fmt.Errorf("embedded %s: %w", n, err))
+				}
 				continue
 			}
 			add(strings.TrimSuffix(n, Ext), s)
@@ -133,7 +140,9 @@ func Load(embedded fs.FS, dirs []string) *Registry {
 			}
 			s, err := Parse(path, data)
 			if err != nil {
-				r.Errs = append(r.Errs, fmt.Errorf("%s: %w", path, err))
+				if !errors.Is(err, proc.ErrKindUnavailable) {
+					r.Errs = append(r.Errs, fmt.Errorf("%s: %w", path, err))
+				}
 				continue
 			}
 			add(strings.TrimSuffix(filepath.Base(path), Ext), s)

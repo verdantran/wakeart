@@ -28,6 +28,7 @@ type rawMeta struct {
 	Scale  float64   `toml:"scale"`
 	Cull   bool      `toml:"cull"`
 	Glyphs string    `toml:"glyphs"`
+	Device string    `toml:"device"`
 }
 
 func safeAll(in []string) []string {
@@ -104,6 +105,7 @@ func Parse(source string, data []byte) (*Scene, error) {
 			Scale:  rm.Scale,
 			Cull:   rm.Cull,
 			Glyphs: []rune(rm.Glyphs),
+			Device: rm.Device,
 		})
 		if err != nil {
 			return nil, err

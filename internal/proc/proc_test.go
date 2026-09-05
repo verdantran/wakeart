@@ -1,6 +1,7 @@
 package proc
 
 import (
+	"errors"
 	"math"
 	"strings"
 	"testing"
@@ -41,6 +42,10 @@ func TestBuildKnownShapes(t *testing.T) {
 func TestEveryKindBuilds(t *testing.T) {
 	for _, kind := range Kinds {
 		r, err := Build(Params{Kind: kind, Spin: SpinFrom([]float64{0.31, 0.53, 0.11}), Scale: 0.9})
+		if errors.Is(err, ErrKindUnavailable) {
+			t.Logf("%s: not available here (%v)", kind, err)
+			continue
+		}
 		if err != nil {
 			t.Errorf("%s: %v", kind, err)
 			continue

@@ -181,8 +181,14 @@ func New(o Options) Model {
 	return m
 }
 
-// Cleanup releases anything the model holds outside the terminal.
-func (m Model) Cleanup() { m.awake.Stop() }
+// Cleanup releases anything the model holds outside the terminal: the sleep
+// inhibitor, and any capture a live scene left running.
+func (m Model) Cleanup() {
+	m.awake.Stop()
+	for _, s := range m.reg.Scenes {
+		s.Stop()
+	}
+}
 
 func (m *Model) notify(s string) { m.notice, m.noticeAt = s, time.Now() }
 

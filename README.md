@@ -50,7 +50,7 @@ keys actually do.
 
 ## What ships
 
-Fifteen scenes, all generated per frame:
+Fifteen scenes generated per frame, plus one that listens:
 
 | Scene | Kind | Palette |
 |---|---|---|
@@ -69,9 +69,46 @@ Fifteen scenes, all generated per frame:
 | Ridge | a scrolling wireframe landscape | synthwave |
 | Scope | a Lissajous trace on a phosphor beam | acid |
 | Cascade | falling glyph columns | acid |
+| Spectrum | bars of whatever the machine is playing | acid |
 
 No art files ship, but the file format below is fully supported for scenes you
 add yourself.
+
+### Spectrum, and where it appears
+
+Spectrum is the one scene that is not a function of time. It reads the audio
+your machine is **playing** — never a microphone — and draws it as a bar per
+frequency band.
+
+It appears on Linux, where PulseAudio and PipeWire both expose the default
+sink's monitor as something a recorder can read. It needs `parec`, from
+`pulseaudio-utils`:
+
+```
+sudo apt install pulseaudio-utils     # Debian, Ubuntu
+sudo dnf install pulseaudio-utils     # Fedora
+```
+
+It does **not** appear on macOS, and the deck simply does not offer it there —
+no dead pane, no warning. macOS gives no route to the system's output audio:
+CoreAudio does not expose it to a recorder, the two APIs that do
+(ScreenCaptureKit and Core Audio taps) need cgo, which the release build
+disables, and the remaining option is a virtual loopback driver, which is a
+system-wide install this program has no business assuming.
+
+`wakeart doctor` reports which recorder it found, or why there is none. Capture
+starts when the scene comes on screen and stops a few seconds after it leaves,
+so nothing is listening while the carousel is elsewhere.
+
+To read a specific sink rather than the default, name its monitor:
+
+```toml
+---
+name   = "Spectrum"
+kind   = "spectrum"
+device = "alsa_output.pci-0000_00_1f.3.analog-stereo.monitor"
+---
+```
 
 ## Adding a scene
 

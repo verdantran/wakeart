@@ -1,0 +1,7 @@
+---
+name    = "Spectrum"
+palette = "acid"
+kind    = "spectrum"
+fps     = 30
+tags    = ["procedural", "audio", "live"]
+---
