@@ -5,6 +5,7 @@ package palette
 import (
 	"fmt"
 	"os"
+	"strconv"
 	"strings"
 )
 
@@ -48,9 +49,14 @@ func (m Mode) String() string {
 
 const Reset = "\x1b[0m"
 
+// hex parses the literals in the palette table below. They are compiled in, so
+// a malformed one is a programming error worth failing loudly at init rather
+// than shipping as a silently black stop.
 func hex(s string) RGB {
 	var r, g, b uint8
-	fmt.Sscanf(s, "%02x%02x%02x", &r, &g, &b)
+	if n, err := fmt.Sscanf(s, "%02x%02x%02x", &r, &g, &b); n != 3 || err != nil {
+		panic("palette: bad colour literal " + strconv.Quote(s))
+	}
 	return RGB{r, g, b}
 }
 
@@ -117,6 +123,9 @@ func (p Palette) At(t float64) RGB {
 	}
 	x := t * float64(len(p.Stops)-1)
 	i := int(x)
+	if i+1 >= len(p.Stops) {
+		return p.Stops[len(p.Stops)-1].C
+	}
 	f := x - float64(i)
 	a, b := p.Stops[i].C, p.Stops[i+1].C
 	lerp := func(u, v uint8) uint8 { return uint8(float64(u) + (float64(v)-float64(u))*f) }

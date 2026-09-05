@@ -16,7 +16,10 @@ type Cell struct {
 	Dim    uint8 // brightness reduction applied by effects
 	Fix    palette.RGB
 	HasFix bool
-	Raw    string // verbatim SGR prefix, set only by ANSI passthrough scenes
+	// Raw is a verbatim SGR prefix, set only by ANSI passthrough scenes and
+	// written to the terminal unchecked. Whatever sets it must have proved it
+	// contains nothing but SGR sequences.
+	Raw string
 	// Cont marks the second half of a double-width glyph such as ⚡. The
 	// terminal paints it as part of the previous cell, so it carries no rune
 	// of its own.
@@ -41,6 +44,29 @@ func RuneWidth(r rune) int {
 		return w
 	}
 	return runewidth.RuneWidth(r)
+}
+
+// Safe reports whether a glyph may be written to a terminal. Scene files are
+// ordinary files a user may have fetched from anywhere, and a bare ESC in the
+// art would let one drive the terminal: retitle the window, or write the
+// clipboard with OSC 52. C1 and DEL are excluded for the same reason, and a
+// tab because it would shift everything after it out of the frame's columns.
+func Safe(r rune) bool {
+	return r >= 0x20 && r != 0x7f && (r < 0x80 || r > 0x9f)
+}
+
+// SafeString strips what Safe rejects, for text that reaches the terminal
+// outside the frame buffer: scene names in the status bar and the listings.
+func SafeString(s string) string {
+	if strings.IndexFunc(s, func(r rune) bool { return !Safe(r) }) < 0 {
+		return s
+	}
+	return strings.Map(func(r rune) rune {
+		if Safe(r) {
+			return r
+		}
+		return -1
+	}, s)
 }
 
 // wideCache covers the glyphs the renderers actually emit, so the common path
@@ -140,6 +166,9 @@ func FromLines(lines []string, mask []string) *Frame {
 			if x >= w {
 				break
 			}
+			if !Safe(r) {
+				r = ' '
+			}
 			f.SetRune(x, y, Cell{R: r, Lvl: Weight(r)})
 			x += RuneWidth(r)
 		}
@@ -155,6 +184,9 @@ func FromLines(lines []string, mask []string) *Frame {
 func lineCells(rs []rune) int {
 	n := 0
 	for _, r := range rs {
+		if !Safe(r) {
+			r = ' '
+		}
 		n += RuneWidth(r)
 	}
 	return n
@@ -261,7 +293,7 @@ func Paint(f *Frame, p palette.Palette, m palette.Mode, b *strings.Builder) {
 				b.WriteByte(' ')
 				continue
 			}
-			if c.Blank() || (c.Wide() && !f.wideOK(x, y)) {
+			if c.Blank() || !Safe(c.R) || (c.Wide() && !f.wideOK(x, y)) {
 				if cur.set {
 					b.WriteString(palette.Reset)
 					cur = styleKey{}
@@ -314,7 +346,7 @@ func Plain(f *Frame) string {
 				continue
 			}
 			r := c.R
-			if r == 0 || (c.Wide() && !f.wideOK(x, y)) {
+			if r == 0 || !Safe(r) || (c.Wide() && !f.wideOK(x, y)) {
 				r = ' '
 			}
 			row = append(row, r)

@@ -8,7 +8,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -53,7 +53,12 @@ Commands:
   wakeart add <file>         Copy a file into the user scene dir, inferring metadata
   wakeart show <name>        Render one scene once, non-interactively
   wakeart doctor             Terminal capabilities + scene validation report
+  wakeart version            Print the version
 `
+
+// version is stamped by the release build's -X ldflag; a plain `go build`
+// leaves it as it is.
+var version = "dev"
 
 type multiFlag []string
 
@@ -86,6 +91,9 @@ func run(args []string) error {
 		case "help":
 			fmt.Print(usage)
 			return nil
+		case "version":
+			fmt.Println("wakeart", version)
+			return nil
 		default:
 			return fmt.Errorf("unknown command %q (try: wakeart help)", cmd)
 		}
@@ -111,11 +119,17 @@ func run(args []string) error {
 		caffeinate = fs.Bool("caffeinate", false, "")
 		onBlur     = fs.String("on-blur", "", "")
 		cfgPath    = fs.String("config", "", "")
+		showVer    = fs.Bool("version", false, "")
 	)
 	fs.Var(&only, "only", "")
 	fs.Var(&sceneDirs, "scene-dir", "")
 	if err := fs.Parse(args); err != nil {
 		return err
+	}
+
+	if *showVer {
+		fmt.Println("wakeart", version)
+		return nil
 	}
 
 	cfg, err := config.Load(*cfgPath)
@@ -126,6 +140,9 @@ func run(args []string) error {
 		d, err := time.ParseDuration(*duration)
 		if err != nil {
 			return fmt.Errorf("duration: %w", err)
+		}
+		if d <= 0 {
+			return fmt.Errorf("duration: %s must be positive", d)
 		}
 		cfg.HoldDuration = d
 		cfg.HoldForced = true
@@ -153,7 +170,12 @@ func run(args []string) error {
 		}
 	}
 	if *intensity != "" {
-		cfg.Intensity = *intensity
+		switch strings.ToLower(*intensity) {
+		case "off", "none", "subtle", "heavy":
+			cfg.Intensity = *intensity
+		default:
+			return fmt.Errorf("unknown --intensity %q (have: off, subtle, heavy)", *intensity)
+		}
 	}
 	if *noCaro {
 		cfg.Carousel = false
@@ -162,10 +184,12 @@ func run(args []string) error {
 		cfg.Awake = true
 	}
 	if *onBlur != "" {
-		if tui.ParseBlurMode(*onBlur).String() != strings.ToLower(*onBlur) {
+		switch strings.ToLower(*onBlur) {
+		case "run", "throttle", "pause", "stop":
+			cfg.OnBlur = *onBlur
+		default:
 			return fmt.Errorf("unknown --on-blur %q (have: run, throttle, pause)", *onBlur)
 		}
-		cfg.OnBlur = *onBlur
 	}
 
 	reg := loadRegistry(append(cfg.SceneDirs, sceneDirs...))
@@ -188,13 +212,13 @@ func run(args []string) error {
 		mode = palette.Mono
 	}
 
-	if *once {
-		return printOnce(reg, start, cfg, mode)
-	}
-
 	sd := *seed
 	if sd == 0 {
 		sd = time.Now().UnixNano()
+	}
+
+	if *once {
+		return printOnce(reg, start, cfg, mode, sd)
 	}
 
 	m := tui.New(tui.Options{
@@ -241,7 +265,7 @@ func parseEffects(v string) (names []string, intensity string, err error) {
 // viewport is the drawing area for the non-interactive paths. Procedural
 // scenes need one; art read from a file brings its own size.
 func viewport() (int, int) {
-	if w, h, err := term.GetSize(os.Stdout.Fd()); err == nil && w > 0 && h > 0 {
+	if w, h, err := term.GetSize(os.Stdout.Fd()); err == nil && w > 0 && h > 1 {
 		return w, h - 1
 	}
 	return 80, 24
@@ -254,10 +278,10 @@ func isTTY(f *os.File) bool {
 
 // printOnce is the shell-startup path. It emits no escape sequences when
 // stdout is not a terminal.
-func printOnce(reg *scene.Registry, start int, cfg config.Config, mode palette.Mode) error {
+func printOnce(reg *scene.Registry, start int, cfg config.Config, mode palette.Mode, seed int64) error {
 	idx := start
 	if cfg.Shuffle {
-		idx = rand.Intn(reg.Len())
+		idx = rand.New(rand.NewSource(seed)).Intn(reg.Len())
 	}
 	s := reg.Scenes[idx]
 	var f *render.Frame
@@ -349,7 +373,7 @@ func mustFrames(s *scene.Scene) []*render.Frame {
 }
 
 const template = `---
-name    = "%s"
+name    = %s
 palette = "neon"
 fps     = 8
 loop    = "forward"
@@ -373,15 +397,20 @@ func cmdNew(args []string) error {
 	if _, err := os.Stat(path); err == nil {
 		return fmt.Errorf("%s already exists", path)
 	}
-	body := fmt.Sprintf(template, name)
+	body := fmt.Sprintf(template, strconv.Quote(name))
 	if err := os.WriteFile(path, []byte(body), 0o644); err != nil {
 		return err
 	}
 	fmt.Println(path)
-	if ed := os.Getenv("EDITOR"); ed != "" {
-		c := exec.Command(ed, path)
+	// EDITOR usually carries flags. Splitting on spaces handles those without
+	// going through a shell; an editor path containing a space needs a wrapper
+	// script, which is the same deal most tools offer.
+	if fields := strings.Fields(os.Getenv("EDITOR")); len(fields) > 0 {
+		c := exec.Command(fields[0], append(fields[1:], path)...)
 		c.Stdin, c.Stdout, c.Stderr = os.Stdin, os.Stdout, os.Stderr
-		return c.Run()
+		if err := c.Run(); err != nil {
+			return fmt.Errorf("editor %s: %w", fields[0], err)
+		}
 	}
 	return nil
 }
@@ -391,6 +420,9 @@ func cmdAdd(args []string) error {
 		return fmt.Errorf("usage: wakeart add <file>")
 	}
 	src := args[0]
+	if fi, err := os.Stat(src); err == nil && fi.Size() > scene.MaxBytes {
+		return fmt.Errorf("%s: %d bytes exceeds the %d-byte limit", src, fi.Size(), scene.MaxBytes)
+	}
 	data, err := os.ReadFile(src)
 	if err != nil {
 		return err
@@ -410,12 +442,12 @@ func cmdAdd(args []string) error {
 		title := strings.ToUpper(base[:1]) + strings.ReplaceAll(base[1:], "-", " ")
 		body = fmt.Sprintf("---\nname = %q\n---\n", title) + body
 	}
-	if err := os.WriteFile(dst, []byte(body), 0o644); err != nil {
-		return err
-	}
 	s, err := scene.Parse(dst, []byte(body))
 	if err != nil {
-		return fmt.Errorf("copied to %s but it does not parse: %w", dst, err)
+		return fmt.Errorf("%s does not parse as a scene: %w", src, err)
+	}
+	if err := os.WriteFile(dst, []byte(body), 0o644); err != nil {
+		return err
 	}
 	w, h := s.Size()
 	fmt.Printf("%s  %q  %d frames  %dx%d  %s\n", dst, s.Meta.Name, len(mustFrames(s)), w, h, s.ColourPath())
@@ -506,9 +538,7 @@ func cmdDoctor(args []string) error {
 	fmt.Printf("scenes (%d)\n", reg.Len())
 	w := tabber{indent: "  "}
 	w.row("NAME", "FRAMES", "SIZE", "COLOUR", "PALETTE", "SOURCE")
-	names := make([]string, 0, reg.Len())
 	for _, s := range reg.Scenes {
-		names = append(names, s.Meta.Name)
 		pal := s.Meta.Palette
 		if pal == "" {
 			pal = "-"
@@ -518,7 +548,6 @@ func cmdDoctor(args []string) error {
 		w.row(s.Meta.Name, frameCount(s), sizeOf(s),
 			s.ColourPath(), pal, shortPath(s.Meta.Source))
 	}
-	sort.Strings(names)
 	w.flush(os.Stdout)
 
 	if len(reg.Errs) > 0 {
@@ -546,8 +575,8 @@ func (t *tabber) flush(w io.Writer) {
 	widths := make([]int, len(t.rows[0]))
 	for _, r := range t.rows {
 		for i, c := range r {
-			if i < len(widths) && len(c) > widths[i] {
-				widths[i] = len(c)
+			if i < len(widths) && cellWidth(c) > widths[i] {
+				widths[i] = cellWidth(c)
 			}
 		}
 	}
@@ -559,8 +588,19 @@ func (t *tabber) flush(w io.Writer) {
 				b.WriteString(c)
 				break
 			}
-			b.WriteString(fmt.Sprintf("%-*s  ", widths[i], c))
+			b.WriteString(c)
+			b.WriteString(strings.Repeat(" ", widths[i]-cellWidth(c)+2))
 		}
 		fmt.Fprintln(w, strings.TrimRight(b.String(), " "))
 	}
+}
+
+// cellWidth is the column count a name occupies, which is neither its byte
+// length nor its rune count once a scene is named in CJK.
+func cellWidth(s string) int {
+	n := 0
+	for _, r := range s {
+		n += render.RuneWidth(r)
+	}
+	return n
 }

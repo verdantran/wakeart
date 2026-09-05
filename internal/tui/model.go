@@ -111,6 +111,7 @@ type Model struct {
 	notice      string
 	noticeAt    time.Time
 	ticking     bool
+	seed        int64
 	transitions []render.Transition
 	rng         *rand.Rand
 	cache       *frameCache
@@ -160,12 +161,15 @@ func New(o Options) Model {
 		effects:     effect.Set{Names: o.Config.Effects, Intensity: in},
 		effState:    effect.NewState(o.Seed),
 		onBlur:      ParseBlurMode(o.Config.OnBlur),
-		ticking:     true,
 		transitions: trans,
+		seed:        o.Seed,
 		rng:         rand.New(rand.NewSource(o.Seed)),
 		cache:       newFrameCache(64),
 	}
 	m.buildOrder(o.Start)
+	// Must agree with what Init will schedule; claiming a pending tick that
+	// never arrives would wedge every later keypress on the ticking check.
+	m.ticking = m.interval() > 0
 	if o.Config.Awake {
 		if err := m.awake.Start(); err != nil {
 			m.notify(awakeMessage(false, err))
@@ -235,7 +239,16 @@ func (m *Model) buildOrder(start int) {
 	}
 }
 
-func (m Model) Init() tea.Cmd { return m.tick() }
+// Init cannot record anything: bubbletea keeps the model it was handed, and
+// this receiver is a copy. It schedules the first tick directly, and New sets
+// ticking to match so the two agree from the start.
+func (m Model) Init() tea.Cmd {
+	d := m.interval()
+	if d <= 0 {
+		return nil
+	}
+	return schedule(d)
+}
 
 func (m Model) current() *scene.Scene {
 	if len(m.order) == 0 {
@@ -344,6 +357,10 @@ func (m *Model) tick() tea.Cmd {
 		return nil
 	}
 	m.ticking = true
+	return schedule(d)
+}
+
+func schedule(d time.Duration) tea.Cmd {
 	return tea.Tick(d, func(t time.Time) tea.Msg { return tickMsg(t) })
 }
 
@@ -351,11 +368,15 @@ func (m *Model) advance(delta int) {
 	if len(m.order) == 0 {
 		return
 	}
-	if f, _ := m.composed(); f != nil && m.transTotal == 0 {
-		m.from = f
-		m.trans = m.transitions[m.rng.Intn(len(m.transitions))]
-		m.transTotal = m.trans.Frames(maxFPS)
-		m.transTicks = 0
+	if m.transTotal == 0 {
+		t := m.transitions[m.rng.Intn(len(m.transitions))]
+		// A Cut draws nothing from the outgoing scene, so holding on to it
+		// would pin a frame until the next resize.
+		if n := t.Frames(maxFPS); n > 0 {
+			if f, _ := m.composed(); f != nil {
+				m.from, m.trans, m.transTotal, m.transTicks = f, t, n, 0
+			}
+		}
 	}
 	m.pos = ((m.pos+delta)%len(m.order) + len(m.order)) % len(m.order)
 	m.animElapsed = 0
@@ -396,6 +417,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			d := now.Sub(m.lastTick)
 			if d > time.Second {
 				d = time.Second // a suspended terminal must not fast-forward the deck
+			}
+			if d < 0 {
+				d = 0 // nor may a clock that steps backwards rewind it
 			}
 			m.animElapsed += d
 			m.holdElapsed += d
@@ -441,6 +465,9 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.advance(-1)
 
 	case key.Matches(msg, m.keys.Shuffle):
+		if len(m.order) == 0 {
+			break
+		}
 		m.shuffle = !m.shuffle
 		cur := m.order[m.pos]
 		m.buildOrder(cur)
@@ -448,7 +475,6 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case key.Matches(msg, m.keys.Palette):
 		m.palOverride = true
 		m.palIdx = (m.palIdx + 1) % len(palette.All)
-		m.cache.reset()
 
 	case key.Matches(msg, m.keys.Effects):
 		m.effects.Intensity = m.effects.Intensity.Next()
@@ -461,10 +487,13 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 	case key.Matches(msg, m.keys.Fit):
 		m.fitMode = !m.fitMode
-		m.cache.reset()
 
 	case key.Matches(msg, m.keys.StatusBar):
 		m.showBar = !m.showBar
+		// The bar owns a row, so the viewport just changed height and a
+		// half-finished transition is holding a frame of the old size.
+		m.from = nil
+		m.transTotal = 0
 
 	case key.Matches(msg, m.keys.Carousel):
 		m.carousel = !m.carousel
@@ -543,6 +572,14 @@ func (m Model) composed() (*render.Frame, bool) {
 	return fitted, cropped
 }
 
+// blendRNG is derived rather than drawn from m.rng: View runs on a copy of the
+// model at moments bubbletea picks, so consuming the shared stream there would
+// make a --seed run unreproducible. Keyed on the tick, the same transition
+// frame redraws identically.
+func (m Model) blendRNG() *rand.Rand {
+	return rand.New(rand.NewSource(m.seed + int64(m.transTicks)*2654435761))
+}
+
 func (m Model) View() string {
 	if m.quitting {
 		return ""
@@ -563,7 +600,7 @@ func (m Model) View() string {
 	}
 	if m.transTotal > 0 && m.from != nil {
 		p := float64(m.transTicks) / float64(m.transTotal)
-		frame = render.Blend(m.from, frame, m.trans, p, m.rng)
+		frame = render.Blend(m.from, frame, m.trans, p, m.blendRNG())
 	}
 
 	out := frame.Clone()

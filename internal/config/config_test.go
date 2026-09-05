@@ -104,3 +104,68 @@ func TestXDGPaths(t *testing.T) {
 		t.Errorf("Dir without XDG = %q", got)
 	}
 }
+
+func TestRejectsBadValues(t *testing.T) {
+	cases := map[string]string{
+		"nan speed":          "speed = nan\n",
+		"inf speed":          "speed = inf\n",
+		"negative duration":  "duration = \"-5s\"\n",
+		"zero duration":      "duration = \"0s\"\n",
+		"unknown palette":    "palette = \"bogus\"\n",
+		"unknown intensity":  "intensity = \"bogus\"\n",
+		"unknown on_blur":    "on_blur = \"bogus\"\n",
+		"unknown effect":     "effects = [\"bogus\"]\n",
+		"unknown transition": "transitions = [\"bogus\"]\n",
+	}
+	for name, body := range cases {
+		path := filepath.Join(t.TempDir(), "config.toml")
+		if err := os.WriteFile(path, []byte(body), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := Load(path); err == nil {
+			t.Errorf("%s: accepted %q", name, body)
+		}
+	}
+}
+
+func TestAcceptsGoodValues(t *testing.T) {
+	body := `duration = "5s"
+speed = 2.5
+palette = "acid"
+intensity = "heavy"
+on_blur = "stop"
+effects = ["glitch", "chroma"]
+transitions = ["cut", "dissolve"]
+`
+	path := filepath.Join(t.TempDir(), "config.toml")
+	if err := os.WriteFile(path, []byte(body), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	c, err := Load(path)
+	if err != nil {
+		t.Fatalf("rejected a valid config: %v", err)
+	}
+	if c.HoldDuration != 5*time.Second || c.Speed != 2.5 || c.Palette != "acid" {
+		t.Errorf("values not carried through: %+v", c)
+	}
+}
+
+func TestRejectsDuplicateKeyBindings(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "config.toml")
+	if err := os.WriteFile(path, []byte("[keys]\nnext = [\"n\"]\nprev = [\"n\"]\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := Load(path); err == nil {
+		t.Error("a key bound to two actions was accepted")
+	}
+}
+
+func TestAcceptsDistinctKeyBindings(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "config.toml")
+	if err := os.WriteFile(path, []byte("[keys]\nnext = [\"l\", \"right\"]\nprev = [\"h\"]\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := Load(path); err != nil {
+		t.Errorf("distinct bindings rejected: %v", err)
+	}
+}

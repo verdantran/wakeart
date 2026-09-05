@@ -170,7 +170,9 @@ and it is in the deck.
 Three ways to colour a scene, in priority order:
 
 1. **Raw ANSI passthrough.** A frame containing SGR escape sequences keeps them
-   verbatim. Paste in existing ANSI art and it works.
+   verbatim. Paste in existing ANSI art and it works. Only colour is honoured —
+   every other escape sequence in a scene file is dropped rather than passed to
+   your terminal.
 2. **Colour mask.** A block after a `~~~` separator, the same shape as the
    frame, where each character is a palette index `0`–`9`.
 3. **Density ramp** (default). Each glyph is scored on ink weight and mapped
@@ -224,6 +226,7 @@ wakeart new <name>           Scaffold a scene and open $EDITOR
 wakeart add <file>           Copy a file into the user scene dir
 wakeart show <name>          Render one scene once, non-interactively
 wakeart doctor               Terminal capabilities + scene validation
+wakeart version              Print the version
 ```
 
 `--once` is the shell-startup path. It writes to stdout, respects pipes, and

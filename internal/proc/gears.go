@@ -50,7 +50,7 @@ var defaultTrain = []gearSpec{
 }
 
 func NewGears(p Params) *Gears {
-	speed := p.Spin.Y
+	speed := p.Spin.Axis(1, 0.5)
 	if speed == 0 {
 		speed = 0.5
 	}

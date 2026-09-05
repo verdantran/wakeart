@@ -22,11 +22,11 @@ type Scope struct {
 
 func NewScope(p Params) *Scope {
 	a, b := 3, 2
-	if p.Spin.X > 0 {
-		a = int(math.Round(p.Spin.X))
+	if x := p.Spin.Axis(0, 0); x > 0 {
+		a = int(math.Round(x))
 	}
-	if p.Spin.Y > 0 {
-		b = int(math.Round(p.Spin.Y))
+	if y := p.Spin.Axis(1, 0); y > 0 {
+		b = int(math.Round(y))
 	}
 	if a < 1 {
 		a = 1
@@ -35,8 +35,8 @@ func NewScope(p Params) *Scope {
 		b = 1
 	}
 	period := 12 * time.Second
-	if p.Spin.Z > 0 {
-		period = time.Duration(p.Spin.Z * float64(time.Second))
+	if d := time.Duration(p.Spin.Axis(2, 0) * float64(time.Second)); d > 0 {
+		period = d
 	}
 	return &Scope{a: a, b: b, sweeps: 6, scale: p.Scale, period: period, glyphs: p.Glyphs}
 }

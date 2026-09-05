@@ -4,11 +4,17 @@ package config
 import (
 	"errors"
 	"fmt"
+	"math"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/pelletier/go-toml/v2"
+
+	"github.com/verdantran/wakeart/internal/effect"
+	"github.com/verdantran/wakeart/internal/palette"
+	"github.com/verdantran/wakeart/internal/render"
 )
 
 type Keys struct {
@@ -106,8 +112,74 @@ func Load(path string) (Config, error) {
 		}
 		c.HoldDuration = d
 	}
+	if err := c.validate(); err != nil {
+		return c, fmt.Errorf("%s: %w", path, err)
+	}
+	return c, nil
+}
+
+// validate rejects what the flag parser would reject. Without it a typo in the
+// file is silent: an unknown palette falls back to the default, an unknown
+// effect never runs, and the user is left wondering.
+func (c *Config) validate() error {
+	// NaN and Inf slip past a `<= 0` test and then poison every duration
+	// computed from them.
+	if math.IsNaN(c.Speed) || math.IsInf(c.Speed, 0) {
+		return fmt.Errorf("speed: %v is not a usable multiplier", c.Speed)
+	}
 	if c.Speed <= 0 {
 		c.Speed = 1
 	}
-	return c, nil
+	if c.HoldDuration <= 0 {
+		return fmt.Errorf("duration: %s must be positive", c.HoldDuration)
+	}
+	if _, ok := palette.Get(c.Palette); !ok {
+		return fmt.Errorf("unknown palette %q (have: %s)", c.Palette, strings.Join(palette.Names(), ", "))
+	}
+	switch strings.ToLower(c.Intensity) {
+	case "off", "none", "subtle", "heavy":
+	default:
+		return fmt.Errorf("unknown intensity %q (have: off, subtle, heavy)", c.Intensity)
+	}
+	switch strings.ToLower(c.OnBlur) {
+	case "run", "throttle", "pause", "stop":
+	default:
+		return fmt.Errorf("unknown on_blur %q (have: run, throttle, pause)", c.OnBlur)
+	}
+	for _, n := range c.Effects {
+		if !effect.Valid(n) {
+			return fmt.Errorf("unknown effect %q (have: %s)", n, strings.Join(effect.Names, ", "))
+		}
+	}
+	for _, t := range c.Transitions {
+		if !render.ValidTransition(t) {
+			return fmt.Errorf("unknown transition %q", t)
+		}
+	}
+	return c.Keys.check()
+}
+
+// check catches a key bound to two actions. Nothing downstream would report
+// it: the key handler is a switch, so the first arm silently wins and one of
+// the two rebindings just does nothing.
+func (k Keys) check() error {
+	owner := map[string]string{}
+	for _, b := range []struct {
+		action string
+		keys   []string
+	}{
+		{"next", k.Next}, {"prev", k.Prev}, {"pause", k.Pause},
+		{"shuffle", k.Shuffle}, {"palette", k.Palette}, {"effects", k.Effects},
+		{"faster", k.Faster}, {"slower", k.Slower}, {"fit", k.Fit},
+		{"status_bar", k.StatusBar}, {"carousel", k.Carousel}, {"awake", k.Awake},
+		{"help", k.Help}, {"quit", k.Quit},
+	} {
+		for _, key := range b.keys {
+			if prev, ok := owner[key]; ok {
+				return fmt.Errorf("keys: %q is bound to both %s and %s", key, prev, b.action)
+			}
+			owner[key] = b.action
+		}
+	}
+	return nil
 }

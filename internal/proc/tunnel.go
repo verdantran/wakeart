@@ -22,7 +22,7 @@ type Tunnel struct {
 }
 
 func NewTunnel(p Params) *Tunnel {
-	rate := math.Abs(p.Spin.Z)
+	rate := math.Abs(p.Spin.Axis(2, 0.34))
 	if rate == 0 {
 		rate = 0.34
 	}

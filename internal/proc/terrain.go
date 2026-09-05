@@ -21,7 +21,7 @@ type Terrain struct {
 }
 
 func NewTerrain(p Params) *Terrain {
-	rate := math.Abs(p.Spin.Z)
+	rate := math.Abs(p.Spin.Axis(2, 0.12))
 	if rate == 0 {
 		rate = 0.12
 	}

@@ -37,10 +37,14 @@ func (t Transition) Frames(fps float64) int {
 
 var glitchRunes = []rune("▓▒░█▄▀╳#%@*")
 
-// Blend composes two fitted frames at progress p in [0,1]. Both must already
-// share the viewport's dimensions.
+// Blend composes two fitted frames at progress p in [0,1]. The two are read
+// against a shared geometry, so a mismatch — the status bar appearing mid
+// transition, say — ends the blend rather than indexing off the end of one.
 func Blend(from, to *Frame, t Transition, p float64, rng *rand.Rand) *Frame {
 	if from == nil || p >= 1 || t == Cut {
+		return to
+	}
+	if to == nil || from.W != to.W || from.H != to.H {
 		return to
 	}
 	if p <= 0 {

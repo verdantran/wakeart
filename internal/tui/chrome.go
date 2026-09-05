@@ -8,6 +8,7 @@ import (
 
 	"github.com/verdantran/wakeart/internal/awake"
 	"github.com/verdantran/wakeart/internal/palette"
+	"github.com/verdantran/wakeart/internal/render"
 )
 
 const (
@@ -41,10 +42,13 @@ func (m Model) statusBar(cropped bool) string {
 		transport = glyphPause
 	}
 
+	// The notice can carry a scene name or an error string from elsewhere, so
+	// it is filtered here as well as at parse time.
 	label := "▸ " + strings.ToUpper(s.Meta.Name)
 	if n := m.noticeText(); n != "" {
 		label = "● " + strings.ToUpper(n)
 	}
+	label = render.SafeString(label)
 	left := "  " + bright.Render(label)
 
 	var flags []string
@@ -93,6 +97,18 @@ func (m Model) statusBar(cropped bool) string {
 	return left + strings.Repeat(" ", gap) + right
 }
 
+// clamp01 is written against 0 first so NaN lands there rather than becoming a
+// negative repeat count.
+func clamp01(v float64) float64 {
+	if !(v > 0) {
+		return 0
+	}
+	if v > 1 {
+		return 1
+	}
+	return v
+}
+
 func (m Model) progress(width int) string {
 	if !m.carousel {
 		return strings.Repeat("▯", width)
@@ -102,10 +118,10 @@ func (m Model) progress(width int) string {
 	if hold > 0 {
 		p = float64(m.holdElapsed) / float64(hold)
 	}
-	if p > 1 {
-		p = 1
+	filled := int(clamp01(p)*float64(width) + 0.5)
+	if filled > width {
+		filled = width
 	}
-	filled := int(p*float64(width) + 0.5)
 	return strings.Repeat("▮", filled) + strings.Repeat("▯", width-filled)
 }
 

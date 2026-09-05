@@ -11,6 +11,11 @@ import (
 
 const Ext = ".scene"
 
+// MaxBytes bounds what one scene file may cost. A frame allocates a cell per
+// glyph, tens of bytes each, so a file far past this size turns into gigabytes
+// of buffer. Real art is a few kilobytes.
+const MaxBytes = 8 << 20
+
 type Registry struct {
 	Scenes []*Scene
 	Errs   []error
@@ -117,6 +122,10 @@ func Load(embedded fs.FS, dirs []string) *Registry {
 		})
 		sort.Strings(found)
 		for _, path := range found {
+			if fi, err := os.Stat(path); err == nil && fi.Size() > MaxBytes {
+				r.Errs = append(r.Errs, fmt.Errorf("%s: %d bytes exceeds the %d-byte limit", path, fi.Size(), MaxBytes))
+				continue
+			}
 			data, err := os.ReadFile(path)
 			if err != nil {
 				r.Errs = append(r.Errs, fmt.Errorf("%s: %w", path, err))

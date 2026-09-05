@@ -16,16 +16,15 @@ var rainGlyphs = []rune("ｱｲｳｴｵｶｷｸｹｺｻｼｽｾｿﾀﾁﾂ�
 // which fall it belongs to, so the whole thing repeats exactly.
 type Rain struct {
 	period time.Duration
-	scale  float64
 	glyphs []rune
 }
 
 func NewRain(p Params) *Rain {
 	period := 8 * time.Second
-	if p.Spin.Y > 0 {
-		period = time.Duration(p.Spin.Y * float64(time.Second))
+	if d := time.Duration(p.Spin.Axis(1, 0) * float64(time.Second)); d > 0 {
+		period = d
 	}
-	return &Rain{period: period, scale: p.Scale, glyphs: p.Glyphs}
+	return &Rain{period: period, glyphs: p.Glyphs}
 }
 
 func (r *Rain) Describe() string    { return "rain" }

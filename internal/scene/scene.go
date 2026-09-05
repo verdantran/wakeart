@@ -7,6 +7,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+	"unicode"
+	"unicode/utf8"
 
 	"github.com/verdantran/wakeart/internal/proc"
 	"github.com/verdantran/wakeart/internal/render"
@@ -174,11 +176,12 @@ func titleFromFilename(path string) string {
 	base := strings.TrimSuffix(filepath.Base(path), filepath.Ext(path))
 	base = strings.NewReplacer("-", " ", "_", " ").Replace(base)
 	words := strings.Fields(base)
-	for i, w := range words {
-		words[i] = strings.ToUpper(w[:1]) + w[1:]
-	}
 	if len(words) == 0 {
 		return "Untitled"
+	}
+	for i, w := range words {
+		r, n := utf8.DecodeRuneInString(w)
+		words[i] = string(unicode.ToUpper(r)) + w[n:]
 	}
 	return strings.Join(words, " ")
 }

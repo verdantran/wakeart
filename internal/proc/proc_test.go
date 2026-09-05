@@ -13,7 +13,7 @@ import (
 
 func TestBuildKnownShapes(t *testing.T) {
 	for _, shape := range Shapes {
-		r, err := Build(Params{Kind: "wireframe", Shape: shape, Spin: DefaultSpin(), Scale: 0.85})
+		r, err := Build(Params{Kind: "wireframe", Shape: shape, Spin: SpinFrom([]float64{0.31, 0.53, 0.11}), Scale: 0.85})
 		if err != nil {
 			t.Fatalf("%s: %v", shape, err)
 		}
@@ -26,7 +26,7 @@ func TestBuildKnownShapes(t *testing.T) {
 		}
 	}
 	for _, surface := range Surfaces {
-		r, err := Build(Params{Kind: "shaded", Shape: surface, Spin: DefaultSpin(), Scale: 0.9})
+		r, err := Build(Params{Kind: "shaded", Shape: surface, Spin: SpinFrom([]float64{0.31, 0.53, 0.11}), Scale: 0.9})
 		if err != nil {
 			t.Fatalf("%s: %v", surface, err)
 		}
@@ -40,7 +40,7 @@ func TestBuildKnownShapes(t *testing.T) {
 // error message is told the wrong set.
 func TestEveryKindBuilds(t *testing.T) {
 	for _, kind := range Kinds {
-		r, err := Build(Params{Kind: kind, Spin: DefaultSpin(), Scale: 0.9})
+		r, err := Build(Params{Kind: kind, Spin: SpinFrom([]float64{0.31, 0.53, 0.11}), Scale: 0.9})
 		if err != nil {
 			t.Errorf("%s: %v", kind, err)
 			continue
@@ -88,7 +88,7 @@ func TestBuildRejectsUnknown(t *testing.T) {
 }
 
 func TestDeterministicInTime(t *testing.T) {
-	r, _ := Build(Params{Kind: "wireframe", Shape: "icosahedron", Spin: DefaultSpin(), Scale: 0.85})
+	r, _ := Build(Params{Kind: "wireframe", Shape: "icosahedron", Spin: SpinFrom([]float64{0.31, 0.53, 0.11}), Scale: 0.85})
 	a := render.Plain(r.Frame(1234*time.Millisecond, 60, 20))
 	b := render.Plain(r.Frame(1234*time.Millisecond, 60, 20))
 	if a != b {
@@ -102,7 +102,7 @@ func TestDeterministicInTime(t *testing.T) {
 func TestStaysInsideTheViewport(t *testing.T) {
 	sizes := []struct{ w, h int }{{20, 10}, {80, 24}, {200, 60}, {1, 1}, {0, 0}}
 	for _, shape := range Shapes {
-		r, _ := Build(Params{Kind: "wireframe", Shape: shape, Spin: DefaultSpin(), Scale: 1.0})
+		r, _ := Build(Params{Kind: "wireframe", Shape: shape, Spin: SpinFrom([]float64{0.31, 0.53, 0.11}), Scale: 1.0})
 		for _, sz := range sizes {
 			for step := 0; step < 40; step++ {
 				f := r.Frame(time.Duration(step)*97*time.Millisecond, sz.w, sz.h)
@@ -243,34 +243,42 @@ func TestObjectSpaceLightingMatchesWorldSpace(t *testing.T) {
 }
 
 func TestSpinFrom(t *testing.T) {
-	s := SpinFrom([]float64{1, 2, 3})
-	if s != (Spin{1, 2, 3}) {
-		t.Errorf("SpinFrom = %+v", s)
+	if got := SpinFrom([]float64{1, 2, 3}).Rates(DefaultSpin()); got != (Spin{1, 2, 3}) {
+		t.Errorf("SpinFrom = %+v", got)
 	}
-	if SpinFrom(nil) != DefaultSpin() {
-		t.Error("an empty spin should fall back to the default tumble")
+	// A mesh kind still gets the default tumble when the file says nothing,
+	// and a partial spin still keeps the defaults for the axes it omits.
+	if got := SpinFrom(nil).Rates(DefaultSpin()); got != DefaultSpin() {
+		t.Errorf("an empty spin should fall back to the default tumble, got %+v", got)
 	}
-	if got := SpinFrom([]float64{9}); got.X != 9 || got.Y != DefaultSpin().Y {
+	if got := SpinFrom([]float64{9}).Rates(DefaultSpin()); got.X != 9 || got.Y != DefaultSpin().Y {
 		t.Errorf("a partial spin should keep the remaining defaults, got %+v", got)
+	}
+	// An axis the file did not name must not be mistaken for a zero it did.
+	if SpinFrom([]float64{9}).Set(1) {
+		t.Error("an omitted axis reports as set")
+	}
+	if got := SpinFrom([]float64{0, 0, 0}); !got.Set(1) || got.Axis(1, 7) != 0 {
+		t.Error("an explicit zero should override the fallback")
 	}
 }
 
 func BenchmarkWireframeCube(b *testing.B) {
-	r, _ := Build(Params{Kind: "wireframe", Shape: "cube", Spin: DefaultSpin(), Scale: 0.85})
+	r, _ := Build(Params{Kind: "wireframe", Shape: "cube", Spin: SpinFrom([]float64{0.31, 0.53, 0.11}), Scale: 0.85})
 	for i := 0; i < b.N; i++ {
 		r.Frame(time.Duration(i)*time.Millisecond, 120, 40)
 	}
 }
 
 func BenchmarkWireframeSphere(b *testing.B) {
-	r, _ := Build(Params{Kind: "wireframe", Shape: "sphere", Spin: DefaultSpin(), Scale: 0.9, Cull: true})
+	r, _ := Build(Params{Kind: "wireframe", Shape: "sphere", Spin: SpinFrom([]float64{0.31, 0.53, 0.11}), Scale: 0.9, Cull: true})
 	for i := 0; i < b.N; i++ {
 		r.Frame(time.Duration(i)*time.Millisecond, 120, 40)
 	}
 }
 
 func BenchmarkShadedTorus(b *testing.B) {
-	r, _ := Build(Params{Kind: "shaded", Shape: "torus", Spin: DefaultSpin(), Scale: 0.95})
+	r, _ := Build(Params{Kind: "shaded", Shape: "torus", Spin: SpinFrom([]float64{0.31, 0.53, 0.11}), Scale: 0.95})
 	for i := 0; i < b.N; i++ {
 		r.Frame(time.Duration(i)*time.Millisecond, 120, 40)
 	}
@@ -314,7 +322,7 @@ func TestThemedKindsUseTheirGlyphs(t *testing.T) {
 }
 
 func TestCustomGlyphsOverrideTheDefaults(t *testing.T) {
-	r, err := Build(Params{Kind: "wireframe", Shape: "cube", Spin: DefaultSpin(), Scale: 0.85,
+	r, err := Build(Params{Kind: "wireframe", Shape: "cube", Spin: SpinFrom([]float64{0.31, 0.53, 0.11}), Scale: 0.85,
 		Glyphs: []rune("·⌁↯ϟ⚡")})
 	if err != nil {
 		t.Fatal(err)
@@ -335,13 +343,13 @@ func TestThemedOutputRespectsCellWidth(t *testing.T) {
 	for _, p := range []Params{
 		{Kind: "storm"},
 		{Kind: "gears", Scale: 0.9},
-		{Kind: "tunnel", Spin: Spin{Z: 0.25}, Scale: 0.98},
-		{Kind: "scope", Spin: Spin{3, 2, 10}, Scale: 0.88},
-		{Kind: "rain", Spin: Spin{Y: 8}},
-		{Kind: "terrain", Spin: Spin{Z: 0.125}, Scale: 0.95},
-		{Kind: "wireframe", Shape: "knot", Spin: DefaultSpin(), Scale: 0.82},
-		{Kind: "wireframe", Shape: "cube", Spin: DefaultSpin(), Glyphs: []rune("·⚡")},
-		{Kind: "shaded", Shape: "torus", Spin: DefaultSpin(), Glyphs: []rune("·◦⚙")},
+		{Kind: "tunnel", Spin: SpinFrom([]float64{0, 0, 0.25}), Scale: 0.98},
+		{Kind: "scope", Spin: SpinFrom([]float64{3, 2, 10}), Scale: 0.88},
+		{Kind: "rain", Spin: SpinFrom([]float64{0, 8})},
+		{Kind: "terrain", Spin: SpinFrom([]float64{0, 0, 0.125}), Scale: 0.95},
+		{Kind: "wireframe", Shape: "knot", Spin: SpinFrom([]float64{0.31, 0.53, 0.11}), Scale: 0.82},
+		{Kind: "wireframe", Shape: "cube", Spin: SpinFrom([]float64{0.31, 0.53, 0.11}), Glyphs: []rune("·⚡")},
+		{Kind: "shaded", Shape: "torus", Spin: SpinFrom([]float64{0.31, 0.53, 0.11}), Glyphs: []rune("·◦⚙")},
 	} {
 		r, err := Build(p)
 		if err != nil {
@@ -414,18 +422,18 @@ func BenchmarkStorm(b *testing.B) {
 // Loop, or a captured replay visibly jumps at the seam.
 func TestLoopClosesTheCircle(t *testing.T) {
 	cases := []Params{
-		{Kind: "wireframe", Shape: "cube", Spin: Spin{0.6283185, 1.2566371, 0.6283185}, Scale: 0.8},
-		{Kind: "wireframe", Shape: "icosahedron", Spin: Spin{1.2566371, 0.6283185, 0.6283185}, Scale: 0.85},
-		{Kind: "wireframe", Shape: "sphere", Spin: Spin{0, 0.6283185, 0}, Scale: 0.9, Cull: true},
-		{Kind: "shaded", Shape: "torus", Spin: Spin{1.2566371, 0, 0.6283185}, Scale: 0.95},
-		{Kind: "wireframe", Shape: "knot", Spin: Spin{0.6283185, 1.2566371, 0}, Scale: 0.82},
-		{Kind: "shaded", Shape: "sphere", Spin: Spin{0, 0.6283185, 0}, Scale: 0.92},
-		{Kind: "gears", Spin: Spin{Y: 0.7853982}, Scale: 0.92},
+		{Kind: "wireframe", Shape: "cube", Spin: SpinFrom([]float64{0.6283185, 1.2566371, 0.6283185}), Scale: 0.8},
+		{Kind: "wireframe", Shape: "icosahedron", Spin: SpinFrom([]float64{1.2566371, 0.6283185, 0.6283185}), Scale: 0.85},
+		{Kind: "wireframe", Shape: "sphere", Spin: SpinFrom([]float64{0, 0.6283185, 0}), Scale: 0.9, Cull: true},
+		{Kind: "shaded", Shape: "torus", Spin: SpinFrom([]float64{1.2566371, 0, 0.6283185}), Scale: 0.95},
+		{Kind: "wireframe", Shape: "knot", Spin: SpinFrom([]float64{0.6283185, 1.2566371, 0}), Scale: 0.82},
+		{Kind: "shaded", Shape: "sphere", Spin: SpinFrom([]float64{0, 0.6283185, 0}), Scale: 0.92},
+		{Kind: "gears", Spin: SpinFrom([]float64{0, 0.7853982}), Scale: 0.92},
 		{Kind: "storm"},
-		{Kind: "tunnel", Spin: Spin{Z: 0.25}, Scale: 0.98},
-		{Kind: "scope", Spin: Spin{3, 2, 10}, Scale: 0.88},
-		{Kind: "rain", Spin: Spin{Y: 8}},
-		{Kind: "terrain", Spin: Spin{Z: 0.125}, Scale: 0.95},
+		{Kind: "tunnel", Spin: SpinFrom([]float64{0, 0, 0.25}), Scale: 0.98},
+		{Kind: "scope", Spin: SpinFrom([]float64{3, 2, 10}), Scale: 0.88},
+		{Kind: "rain", Spin: SpinFrom([]float64{0, 8})},
+		{Kind: "terrain", Spin: SpinFrom([]float64{0, 0, 0.125}), Scale: 0.95},
 	}
 	for _, p := range cases {
 		r, err := Build(p)
@@ -480,28 +488,28 @@ func TestShippedSpinsAreCommensurate(t *testing.T) {
 }
 
 func BenchmarkTunnel(b *testing.B) {
-	r, _ := Build(Params{Kind: "tunnel", Spin: Spin{Z: 0.25}, Scale: 0.98})
+	r, _ := Build(Params{Kind: "tunnel", Spin: SpinFrom([]float64{0, 0, 0.25}), Scale: 0.98})
 	for i := 0; i < b.N; i++ {
 		r.Frame(time.Duration(i)*time.Millisecond, 120, 40)
 	}
 }
 
 func BenchmarkScope(b *testing.B) {
-	r, _ := Build(Params{Kind: "scope", Spin: Spin{3, 2, 10}, Scale: 0.88})
+	r, _ := Build(Params{Kind: "scope", Spin: SpinFrom([]float64{3, 2, 10}), Scale: 0.88})
 	for i := 0; i < b.N; i++ {
 		r.Frame(time.Duration(i)*time.Millisecond, 120, 40)
 	}
 }
 
 func BenchmarkTerrain(b *testing.B) {
-	r, _ := Build(Params{Kind: "terrain", Spin: Spin{Z: 0.125}, Scale: 0.95})
+	r, _ := Build(Params{Kind: "terrain", Spin: SpinFrom([]float64{0, 0, 0.125}), Scale: 0.95})
 	for i := 0; i < b.N; i++ {
 		r.Frame(time.Duration(i)*time.Millisecond, 120, 40)
 	}
 }
 
 func BenchmarkRain(b *testing.B) {
-	r, _ := Build(Params{Kind: "rain", Spin: Spin{Y: 8}})
+	r, _ := Build(Params{Kind: "rain", Spin: SpinFrom([]float64{0, 8})})
 	for i := 0; i < b.N; i++ {
 		r.Frame(time.Duration(i)*time.Millisecond, 120, 40)
 	}

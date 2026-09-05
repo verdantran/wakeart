@@ -30,6 +30,14 @@ type rawMeta struct {
 	Glyphs string    `toml:"glyphs"`
 }
 
+func safeAll(in []string) []string {
+	out := make([]string, len(in))
+	for i, s := range in {
+		out[i] = render.SafeString(s)
+	}
+	return out
+}
+
 const (
 	frontDelim = "---"
 	frameDelim = "==="
@@ -49,19 +57,22 @@ func Parse(source string, data []byte) (*Scene, error) {
 		}
 	}
 
+	// Frontmatter is displayed — in the status bar, in `list`, in `doctor` —
+	// so it goes through the same control-character filter as the art. A name
+	// carrying an OSC sequence would otherwise drive the user's terminal.
 	m := Meta{
-		Name:    rm.Name,
-		Author:  rm.Author,
-		Palette: rm.Palette,
+		Name:    render.SafeString(rm.Name),
+		Author:  render.SafeString(rm.Author),
+		Palette: render.SafeString(rm.Palette),
 		FPS:     rm.FPS,
 		Loop:    LoopMode(rm.Loop),
 		Align:   render.ParseAlign(rm.Align),
 		Effects: rm.Effects,
-		Tags:    rm.Tags,
-		Kind:    rm.Kind,
-		Shape:   rm.Shape,
+		Tags:    safeAll(rm.Tags),
+		Kind:    render.SafeString(rm.Kind),
+		Shape:   render.SafeString(rm.Shape),
 		Scale:   rm.Scale,
-		Source:  source,
+		Source:  render.SafeString(source),
 	}
 	if m.Name == "" {
 		m.Name = titleFromFilename(source)
@@ -192,44 +203,83 @@ func trimBlankEdges(lines []string) []string {
 	return out
 }
 
+// maxSGRPrefix caps the style prefix carried per cell. A line can legally
+// switch colour many times, but nothing needs kilobytes of it, and without a
+// cap a file of nothing but SGR sequences costs that much on every cell.
+const maxSGRPrefix = 256
+
 // framePassthrough keeps the file's own SGR sequences, attaching the active
-// one to each glyph so cropping and effects still work.
+// one to each glyph so cropping and effects still work. Everything else the
+// file might contain — other CSI sequences, OSC, a lone ESC — is dropped: the
+// prefix is written to the terminal verbatim, so only colour may go in it.
 func framePassthrough(lines []string) *render.Frame {
 	rows := make([][]render.Cell, len(lines))
 	w := 0
 	for i, line := range lines {
 		var cells []render.Cell
 		var cur string
+		width := 0
 		rs := []rune(line)
 		for x := 0; x < len(rs); x++ {
-			if rs[x] == 0x1b && x+1 < len(rs) && rs[x+1] == '[' {
-				start := x
-				x += 2
-				for x < len(rs) && !(rs[x] >= '@' && rs[x] <= '~') {
-					x++
-				}
-				seq := string(rs[start : x+1])
-				if strings.HasSuffix(seq, "m") {
-					if seq == "\x1b[0m" || seq == "\x1b[m" {
-						cur = ""
-					} else {
-						cur += seq
-					}
-				}
+			if rs[x] == 0x1b {
+				x = skipEscape(rs, x, &cur)
+				continue
+			}
+			if !render.Safe(rs[x]) {
 				continue
 			}
 			cells = append(cells, render.Cell{R: rs[x], Lvl: render.Weight(rs[x]), Raw: cur})
+			width += render.RuneWidth(rs[x])
 		}
 		rows[i] = cells
-		if len(cells) > w {
-			w = len(cells)
+		if width > w {
+			w = width
 		}
 	}
 	f := render.New(w, len(rows))
 	for y, row := range rows {
-		for x, c := range row {
-			f.Set(x, y, c)
+		x := 0
+		for _, c := range row {
+			f.SetRune(x, y, c)
+			x += render.RuneWidth(c.R)
 		}
 	}
 	return f
+}
+
+// skipEscape consumes the escape sequence starting at i, folding it into cur
+// when it is an SGR. It returns the index of the sequence's final rune, so the
+// caller's loop increment lands on whatever follows.
+func skipEscape(rs []rune, i int, cur *string) int {
+	if i+1 >= len(rs) || rs[i+1] != '[' {
+		return i // a lone ESC, or a sequence introducer we do not honour
+	}
+	j := i + 2
+	for j < len(rs) && !(rs[j] >= '@' && rs[j] <= '~') {
+		j++
+	}
+	if j >= len(rs) {
+		return len(rs) // unterminated: the rest of the line is the sequence
+	}
+	if rs[j] != 'm' || !sgrBody(rs[i+2:j]) {
+		return j
+	}
+	seq := string(rs[i : j+1])
+	if seq == "\x1b[0m" || seq == "\x1b[m" {
+		*cur = ""
+	} else if len(*cur)+len(seq) <= maxSGRPrefix {
+		*cur += seq
+	}
+	return j
+}
+
+// sgrBody rejects anything but the digits and separators a colour select is
+// made of, so a private-parameter sequence cannot ride along in the prefix.
+func sgrBody(rs []rune) bool {
+	for _, r := range rs {
+		if (r < '0' || r > '9') && r != ';' && r != ':' {
+			return false
+		}
+	}
+	return true
 }

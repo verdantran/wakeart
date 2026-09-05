@@ -115,7 +115,7 @@ func (st *State) Glitching() bool { return st.glitchLeft > 0 }
 // Apply mutates f in place. Callers pass a clone; the cached composition must
 // survive untouched.
 func (s Set) Apply(f *render.Frame, st *State) {
-	if s.Intensity == Off || f == nil || f.W == 0 {
+	if s.Intensity == Off || f == nil || f.W == 0 || f.H == 0 {
 		return
 	}
 	if s.Has("scanlines") {

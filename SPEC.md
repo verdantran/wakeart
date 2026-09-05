@@ -156,7 +156,7 @@ Rules:
 
 Three ways to colour a scene, in priority order:
 
-1. **Raw ANSI passthrough.** If a frame contains SGR escape sequences, they're honoured verbatim and auto-colouring is skipped. This is what makes the enormous body of existing ANSI art usable — paste it in and it works.
+1. **Raw ANSI passthrough.** If a frame contains SGR escape sequences, they're honoured verbatim and auto-colouring is skipped. This is what makes the enormous body of existing ANSI art usable — paste it in and it works. Only SGR is honoured: a scene file is an ordinary file a user may have fetched from anywhere, and every other escape sequence — OSC, DCS, cursor movement, a bare ESC — is dropped rather than handed to the terminal. An OSC 52 in a shared scene would otherwise write the reader's clipboard. Control characters are stripped from scene metadata for the same reason, since the status bar and `wakeart list` print it.
 2. **Colour mask.** An optional block after a `~~~` separator, same dimensions as the frame, where each character is a palette index `0`–`9`. Gives precise control for hand-tuned pieces.
 3. **Density ramp (default).** Each glyph is scored on ink weight (` .:-=+*#%@` and block-drawing characters have known weights) and mapped across the palette gradient. Costs the author nothing and makes plain ASCII look intentional.
 
@@ -177,8 +177,9 @@ A scene file with a `kind` generates its geometry per frame instead of carrying 
 name  = "Icosahedron"
 kind  = "wireframe"        # wireframe | shaded
 shape = "icosahedron"
-spin  = [0.17, 0.44, 0.09] # radians per second about x, y, z
-scale = 0.85               # fraction of the viewport
+spin  = [0.17, 0.44, 0.09] # radians per second about x, y, z; omitted axes
+                           # fall back to the default for this kind
+scale = 0.85               # fraction of the viewport, 0 to 4
 cull  = false              # drop far-side edges; convex shapes only
 fps   = 24
 ---
@@ -202,7 +203,7 @@ fps   = 24
 
 ### Themed glyph sets
 
-Any procedural scene may replace its glyph set with `glyphs`, a ramp running dim to bright:
+Any procedural scene may replace its glyph set with `glyphs`, a ramp running dim to bright. Two characters is the minimum, since the ramp is interpolated across the gaps between them:
 
 ```toml
 glyphs = "·⌁↯ϟ⚡"     # an icosahedron drawn out of lightning bolts
@@ -290,6 +291,7 @@ Commands:
   wakeart add <file>         Copy a file into the user scene dir, inferring metadata
   wakeart show <name>        Render one scene once, non-interactively
   wakeart doctor             Terminal capabilities + scene validation report
+  wakeart version            Print the version
 ```
 
 `--once` is the shell-startup path: `wakeart --once --scene cube` in your `.zshrc` prints a single frame as a banner and exits. It writes to stdout, respects pipes, and emits no escape sequences when not a TTY.

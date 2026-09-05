@@ -120,8 +120,11 @@ func (c camera) depthLevel(z float64) uint8 {
 	return uint8(clamp(t, 0, 1)*165) + 90
 }
 
+// clamp is written against lo rather than with `v < lo` so that NaN, for which
+// every comparison is false, lands on lo instead of travelling on into an
+// array index.
 func clamp(v, lo, hi float64) float64 {
-	if v < lo {
+	if !(v > lo) {
 		return lo
 	}
 	if v > hi {
@@ -236,7 +239,6 @@ func drawLine(f *render.Frame, zbuf []float64, x0, y0, z0, x1, y1, z1 float64, c
 			// end of the themed set.
 			r = pick(glyphs, float64(lvl-90)/165)
 		}
-		zbuf[idx] = z
 		f.SetRune(x, y, render.Cell{R: r, Lvl: lvl})
 	}
 }
@@ -255,6 +257,43 @@ type Shaded struct {
 	Light   Vec3
 	Glyphs  []rune
 	name    string
+
+	// Scratch reused across frames. The tables depend only on the sample
+	// counts, and those only on the viewport, so a resize is the one thing
+	// that rebuilds them. A renderer is driven from one goroutine.
+	trig trigCache
+	zbuf []float64
+}
+
+// trigCache holds the two unit-circle tables a surface is sampled on.
+type trigCache struct {
+	nu, nv     int
+	cosU, sinU []float64
+	cosV, sinV []float64
+}
+
+func (c *trigCache) tables(nu, nv int) (cosU, sinU, cosV, sinV []float64) {
+	if c.nu != nu {
+		c.cosU, c.sinU = trigTable(nu)
+		c.nu = nu
+	}
+	if c.nv != nv {
+		c.cosV, c.sinV = trigTable(nv)
+		c.nv = nv
+	}
+	return c.cosU, c.sinU, c.cosV, c.sinV
+}
+
+// depthBuffer hands back a buffer of the right size, reset to "nothing drawn".
+func (r *Shaded) depthBuffer(n int) []float64 {
+	if cap(r.zbuf) < n {
+		r.zbuf = make([]float64, n)
+	}
+	r.zbuf = r.zbuf[:n]
+	for i := range r.zbuf {
+		r.zbuf[i] = math.MaxFloat64
+	}
+	return r.zbuf
 }
 
 // Surface builds a point and its outward normal from the trig of its two
@@ -296,13 +335,8 @@ func (r *Shaded) Frame(t time.Duration, w, h int) *render.Frame {
 	nu := clampInt(int(du*float64(w)), 24, 320)
 	nv := clampInt(int(dv*float64(h)), 16, 200)
 
-	cosU, sinU := trigTable(nu)
-	cosV, sinV := trigTable(nv)
-
-	zbuf := make([]float64, w*h)
-	for i := range zbuf {
-		zbuf[i] = math.MaxFloat64
-	}
+	cosU, sinU, cosV, sinV := r.trig.tables(nu, nv)
+	zbuf := r.depthBuffer(w * h)
 
 	for i := 0; i < nu; i++ {
 		cu, su := cosU[i], sinU[i]

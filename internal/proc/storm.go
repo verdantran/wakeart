@@ -24,10 +24,9 @@ const (
 // hidden state between frames.
 type Storm struct {
 	glyphs []rune
-	scale  float64
 }
 
-func NewStorm(p Params) *Storm { return &Storm{glyphs: p.Glyphs, scale: p.Scale} }
+func NewStorm(p Params) *Storm { return &Storm{glyphs: p.Glyphs} }
 
 func (s *Storm) Describe() string { return "storm" }
 

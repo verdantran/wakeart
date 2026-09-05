@@ -98,15 +98,20 @@ func Scale(src *Frame, w, h int) *Frame {
 			if sy1 <= sy0 {
 				sy1 = sy0 + 1
 			}
+			// A continuation cell carries its head's level but no glyph of its
+			// own, so letting one win leaves an empty column behind.
+			if dst.At(x, y).Cont {
+				continue
+			}
 			best := Cell{}
 			for sy := sy0; sy < sy1 && sy < src.H; sy++ {
 				for sx := sx0; sx < sx1 && sx < src.W; sx++ {
-					if c := src.At(sx, sy); !c.Blank() && c.Lvl >= best.Lvl {
+					if c := src.At(sx, sy); !c.Cont && !c.Blank() && c.Lvl >= best.Lvl {
 						best = c
 					}
 				}
 			}
-			dst.Set(x, y, best)
+			dst.SetRune(x, y, best)
 		}
 	}
 	return dst
