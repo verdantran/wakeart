@@ -24,6 +24,7 @@ type Keys struct {
 	Shuffle   []string `toml:"shuffle"`
 	Palette   []string `toml:"palette"`
 	Effects   []string `toml:"effects"`
+	EffectSet []string `toml:"effect_set"`
 	Faster    []string `toml:"faster"`
 	Slower    []string `toml:"slower"`
 	Fit       []string `toml:"fit"`

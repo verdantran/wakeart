@@ -96,6 +96,9 @@ type Model struct {
 	palOverride bool
 	effects     effect.Set
 	effState    *effect.State
+	// effSel is 0 for the configured (or scene's own) set, otherwise the
+	// 1-based index into effect.Names of the single effect being previewed.
+	effSel int
 
 	animElapsed time.Duration
 	holdElapsed time.Duration
@@ -279,11 +282,31 @@ func (m Model) activePalette() palette.Palette {
 }
 
 func (m Model) activeEffects() effect.Set {
+	// A single effect picked with the cycle key beats both the scene and the
+	// config, the way a cycled palette does.
+	if m.effSel > 0 {
+		return effect.Set{Names: []string{effect.Names[m.effSel-1]}, Intensity: m.effects.Intensity}
+	}
 	s := m.current()
 	if s != nil && len(s.Meta.Effects) > 0 {
 		return effect.Set{Names: s.Meta.Effects, Intensity: m.effects.Intensity}
 	}
 	return m.effects
+}
+
+// effectMessage names what the effect cycle just selected, for the status bar.
+func (m Model) effectMessage() string {
+	names := m.activeEffects().Names
+	what := "none"
+	if m.effSel > 0 {
+		what = effect.Names[m.effSel-1]
+	} else if len(names) > 0 {
+		what = strings.Join(names, " + ")
+	}
+	if m.effects.Intensity == effect.Off {
+		return "effects " + what + " — intensity off"
+	}
+	return "effects " + what
 }
 
 // interval decides the next wake-up. A static scene with no motion effects
@@ -478,6 +501,11 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 	case key.Matches(msg, m.keys.Effects):
 		m.effects.Intensity = m.effects.Intensity.Next()
+		m.notify("effect intensity " + m.effects.Intensity.String())
+
+	case key.Matches(msg, m.keys.EffectSet):
+		m.effSel = (m.effSel + 1) % (len(effect.Names) + 1)
+		m.notify(m.effectMessage())
 
 	case key.Matches(msg, m.keys.Faster):
 		m.speed = clampSpeed(m.speed * 2)
@@ -626,7 +654,7 @@ func centreText(w, h int, s string) string {
 	}
 	var b strings.Builder
 	for i := 0; i < h/2; i++ {
-		b.WriteString("\r\n")
+		b.WriteString("\n") // see helpView: a trailing CR would erase the line
 	}
 	b.WriteString(strings.Repeat(" ", pad) + s)
 	return b.String()

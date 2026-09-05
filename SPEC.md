@@ -68,19 +68,20 @@ The scene is centred in the viewport. The status bar is one dim line pinned to t
 |---|---|
 | `space` | Pause / resume |
 | `n`, `→`, `l` | Next scene |
-| `p`, `←`, `h` | Previous scene |
+| `p`, `←` | Previous scene |
 | `a` | Toggle the carousel — hold on one scene, or auto-advance |
 | `k` | Toggle keep-awake — hold off system sleep |
 | `s` | Toggle shuffle |
 | `c` | Cycle palette |
 | `e` | Cycle effect intensity — off / subtle / heavy |
+| `E`, `x` | Cycle which effect runs — the configured set, then each effect on its own |
 | `+` / `-` | Speed up / slow down (0.25×–4×) |
 | `f` | Toggle fullscreen fit (fit-to-width scaling on/off) |
 | `i` | Toggle status bar |
-| `?` | Help overlay |
+| `h`, `?` | Toggle the help overlay |
 | `q`, `esc`, `ctrl+c` | Quit |
 
-Every binding is remappable in config. The help overlay is generated from the keymap, so it can't drift.
+Every binding is remappable in config. The status bar carries a `h help` hint (the first key bound to help, so it follows a remap) whenever the bar is wide enough for it, and the overlay itself is generated from the keymap, so neither can drift.
 
 ### Keeping the machine awake
 
@@ -260,6 +261,8 @@ Post-processing applied to the composed frame, after colouring, before paint. Ea
 - **chroma** — a magenta and a cyan ghost of high-contrast rows offset by one cell. Fake RGB split. Expensive-looking, cheap to compute, and the single most "cyberpunk" thing in the list.
 
 Effects are stateless functions over a frame buffer plus an RNG seeded per run, so a given seed replays identically — which is what makes them testable.
+
+`e` cycles the intensity; `E` (or `x`) cycles *which* effect runs, stepping from the configured set through each effect on its own and back again, so a single effect can be seen in isolation without editing config. A cycled effect beats the scene's own list, the way a cycled palette does, and the status bar names each selection as it is picked.
 
 `--no-effects` and `NO_COLOR=1` both drop straight to clean text.
 
