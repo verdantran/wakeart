@@ -37,7 +37,7 @@ type Source struct {
 	stopped chan struct{}
 	buf     [ring]float64
 	pos     int
-	filled  bool
+	written int64 // total samples ever pushed; primed once it reaches Window
 	last    time.Time
 	err     error
 
@@ -63,11 +63,11 @@ func (s *Source) Levels() ([Bands]float64, bool) {
 	if s.cmd == nil && s.err == nil {
 		s.start()
 	}
-	if s.err != nil || !s.filled {
-		err := s.err
+	if s.err != nil || s.written < Window {
 		s.mu.Unlock()
-		var zero [Bands]float64
-		return zero, err == nil // running but not yet primed still counts as live
+		// Not yet primed is not the same as silence, and drawing empty bars
+		// would say the wrong thing. The caller shows its waiting state.
+		return [Bands]float64{}, false
 	}
 	// Copy the newest window out from under the lock, so the transform does not
 	// hold up the reader goroutine.
@@ -77,6 +77,22 @@ func (s *Source) Levels() ([Bands]float64, bool) {
 	s.mu.Unlock()
 
 	return s.analyser.Levels(s.scratch), true
+}
+
+// Prime starts the capture and waits for the first full window, so a caller
+// that will only ever draw one frame does not draw an empty one. The carousel
+// does not need it: it is already drawing again in 30ms.
+func (s *Source) Prime(d time.Duration) {
+	deadline := time.Now().Add(d)
+	for time.Now().Before(deadline) {
+		if _, live := s.Levels(); live {
+			return
+		}
+		if s.Err() != nil {
+			return
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
 }
 
 // Err is the reason capture is not running, or nil.
@@ -147,9 +163,7 @@ func (s *Source) push(b []byte) {
 		}
 		s.buf[s.pos] = v
 		s.pos = (s.pos + 1) % ring
-		if s.pos == 0 {
-			s.filled = true
-		}
+		s.written++
 	}
 }
 
@@ -180,7 +194,7 @@ func (s *Source) Stop() {
 	cmd := s.cmd
 	stopped := s.stopped
 	s.cmd, s.stopped = nil, nil
-	s.filled, s.pos = false, 0
+	s.written, s.pos = 0, 0
 	s.mu.Unlock()
 
 	if cmd == nil {

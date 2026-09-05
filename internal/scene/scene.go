@@ -70,6 +70,14 @@ func (s *Scene) Live() bool {
 	return ok && l.Live()
 }
 
+// Prime gives a live scene a moment to have something to show, for the paths
+// that draw exactly one frame.
+func (s *Scene) Prime(d time.Duration) {
+	if p, ok := s.proc.(interface{ Prime(time.Duration) }); ok {
+		p.Prime(d)
+	}
+}
+
 // Stop releases whatever the scene holds open. Only a live scene has anything
 // to release.
 func (s *Scene) Stop() {

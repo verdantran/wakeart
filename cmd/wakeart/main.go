@@ -288,8 +288,9 @@ func printOnce(reg *scene.Registry, start int, cfg config.Config, mode palette.M
 	var f *render.Frame
 	if s.Procedural() {
 		w, h := viewport()
+		s.Prime(2 * time.Second) // a live scene has nothing to show on frame one
 		f = s.Render(1700*time.Millisecond, 1, w, h)
-		defer s.Stop() // a live scene holds a capture open until told otherwise
+		defer s.Stop() // and holds a capture open until told otherwise
 	} else {
 		frames, err := s.Frames()
 		if err != nil {
@@ -493,8 +494,9 @@ func cmdShow(args []string) error {
 	var f *render.Frame
 	if s.Procedural() {
 		w, h := viewport()
+		s.Prime(2 * time.Second) // a live scene has nothing to show on frame one
 		f = s.Render(1700*time.Millisecond, 1, w, h)
-		defer s.Stop() // a live scene holds a capture open until told otherwise
+		defer s.Stop() // and holds a capture open until told otherwise
 	} else {
 		frames, err := s.Frames()
 		if err != nil {

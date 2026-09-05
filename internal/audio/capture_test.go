@@ -74,11 +74,12 @@ func waitFor(t *testing.T, what string, cond func() bool) {
 
 func TestCapturedToneReachesTheBands(t *testing.T) {
 	s := fakeSource(t, "tone")
+	s.Prime(5 * time.Second)
 	var peak float64
 	waitFor(t, "a band to respond to the tone", func() bool {
 		lv, live := s.Levels()
 		if !live {
-			t.Fatal("source reported not live")
+			return false // still filling; the deadline in waitFor bounds this
 		}
 		peak = 0
 		for _, v := range lv {
@@ -92,12 +93,7 @@ func TestCapturedToneReachesTheBands(t *testing.T) {
 
 func TestCapturedSilenceStaysFlat(t *testing.T) {
 	s := fakeSource(t, "silence")
-	s.Levels() // starts the capture; nothing runs until something asks
-	waitFor(t, "the buffer to prime", func() bool {
-		s.mu.Lock()
-		defer s.mu.Unlock()
-		return s.filled
-	})
+	s.Prime(5 * time.Second)
 	for i := 0; i < 40; i++ {
 		s.Levels()
 	}
@@ -187,5 +183,42 @@ func TestDeviceValidation(t *testing.T) {
 		if _, err := cleanDevice(bad); err == nil {
 			t.Errorf("cleanDevice(%q) was accepted", bad)
 		}
+	}
+}
+
+// The one-shot paths draw a single frame, so an unprimed source would render
+// an empty pane and call it silence.
+func TestPrimeWaitsForAFullWindow(t *testing.T) {
+	s := fakeSource(t, "tone")
+	if _, live := s.Levels(); live {
+		t.Error("reported live before any samples had arrived")
+	}
+	s.Prime(5 * time.Second)
+	lv, live := s.Levels()
+	if !live {
+		t.Fatal("still not live after priming")
+	}
+	peak := 0.0
+	for _, v := range lv {
+		if v > peak {
+			peak = v
+		}
+	}
+	if peak == 0 {
+		t.Error("primed but every band is zero")
+	}
+}
+
+// Priming must give up rather than hang when there is no recorder.
+func TestPrimeGivesUpOnAnUnsupportedBackend(t *testing.T) {
+	s := NewSource("")
+	orig := newCaptureCmd
+	newCaptureCmd = func(string) (*exec.Cmd, error) { return nil, ErrUnsupported }
+	defer func() { newCaptureCmd = orig }()
+
+	start := time.Now()
+	s.Prime(5 * time.Second)
+	if d := time.Since(start); d > time.Second {
+		t.Errorf("Prime waited %v for a backend that does not exist", d)
 	}
 }

@@ -42,6 +42,14 @@ func (s *Spectrum) Loop() time.Duration { return 0 }
 // leave it alone.
 func (s *Spectrum) Live() bool { return true }
 
+// Prime waits for the capture to have a full window, so a one-shot render
+// shows the audio rather than an empty pane.
+func (s *Spectrum) Prime(d time.Duration) {
+	if p, ok := s.src.(interface{ Prime(time.Duration) }); ok {
+		p.Prime(d)
+	}
+}
+
 // Stop releases the capture. The idle reaper would get there on its own, but
 // quitting should not leave a recorder running for another few seconds.
 func (s *Spectrum) Stop() { s.src.Stop() }

@@ -98,7 +98,9 @@ system-wide install this program has no business assuming.
 
 `wakeart doctor` reports which recorder it found, or why there is none. Capture
 starts when the scene comes on screen and stops a few seconds after it leaves,
-so nothing is listening while the carousel is elsewhere.
+so nothing is listening while the carousel is elsewhere. `wakeart show
+spectrum` waits a moment for the first window of audio, since it only ever
+draws one frame.
 
 To read a specific sink rather than the default, name its monitor:
 
